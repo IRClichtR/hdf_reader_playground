@@ -1,0 +1,173 @@
+HDF5 "Box1.vtkhdf" {
+GROUP "/" {
+   GROUP "VTKHDF" {
+      ATTRIBUTE "Type" {
+         DATATYPE  H5T_STRING {
+            STRSIZE 17;
+            STRPAD H5T_STR_NULLTERM;
+            CSET H5T_CSET_ASCII;
+            CTYPE H5T_C_S1;
+         }
+         DATASPACE  SCALAR
+         DATA {
+         (0): "MultiBlockDataSet"
+         }
+      }
+      ATTRIBUTE "Version" {
+         DATATYPE  H5T_STD_I64LE
+         DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
+         DATA {
+         (0): 2, 4
+         }
+      }
+      GROUP "Assembly" {
+         SOFTLINK "Block_1" {
+            LINKTARGET "/VTKHDF/Block_1"
+         }
+      }
+      GROUP "Block_1" {
+         ATTRIBUTE "Type" {
+            DATATYPE  H5T_STRING {
+               STRSIZE 16;
+               STRPAD H5T_STR_NULLTERM;
+               CSET H5T_CSET_ASCII;
+               CTYPE H5T_C_S1;
+            }
+            DATASPACE  SCALAR
+            DATA {
+            (0): "UnstructuredGrid"
+            }
+         }
+         ATTRIBUTE "Version" {
+            DATATYPE  H5T_STD_I64LE
+            DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
+            DATA {
+            (0): 2, 4
+            }
+         }
+         GROUP "CellData" {
+            DATASET "Box1" {
+               DATATYPE  H5T_IEEE_F64LE
+               DATASPACE  SIMPLE { ( 54 ) / ( H5S_UNLIMITED ) }
+               DATA {
+               (0): 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0,
+               (17): 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+               (33): 17, 18, 19, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+               (49): 13, 14, 15, 16, 17
+               }
+            }
+            DATASET "FamilyIdCell" {
+               DATATYPE  H5T_STD_I64LE
+               DATASPACE  SIMPLE { ( 54 ) / ( H5S_UNLIMITED ) }
+               DATA {
+               (0): 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+               (19): 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+               (38): 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+               }
+            }
+            DATASET "NumIdCell" {
+               DATATYPE  H5T_STD_I64LE
+               DATASPACE  SIMPLE { ( 54 ) / ( H5S_UNLIMITED ) }
+               DATA {
+               (0): 5, 11, 8, 13, 4, 15, 3, 12, 10, 9, 14, 7, 1, 16, 6, 2,
+               (16): 36, 22, 17, 31, 24, 33, 26, 19, 35, 28, 21, 30, 23, 32,
+               (30): 25, 18, 34, 27, 20, 29, 53, 46, 41, 39, 49, 52, 45, 38,
+               (44): 48, 43, 37, 51, 40, 42, 54, 47, 44, 50
+               }
+            }
+         }
+         DATASET "Connectivity" {
+            DATATYPE  H5T_STD_I64LE
+            DATASPACE  SIMPLE { ( 164 ) / ( H5S_UNLIMITED ) }
+            DATA {
+            (0): 2, 9, 11, 6, 4, 10, 1, 5, 9, 3, 7, 3, 0, 2, 5, 7, 7, 11, 6,
+            (19): 4, 4, 0, 10, 5, 1, 8, 2, 6, 3, 1, 8, 0, 6, 2, 4, 4, 10, 6,
+            (38): 3, 1, 9, 2, 6, 9, 11, 6, 10, 1, 3, 7, 8, 10, 0, 8, 9, 1, 2,
+            (57): 0, 4, 10, 8, 5, 10, 5, 11, 9, 11, 3, 7, 11, 5, 11, 9, 6, 1,
+            (75): 5, 8, 2, 9, 0, 7, 5, 1, 4, 0, 10, 8, 0, 9, 7, 3, 11, 11,
+            (93): 10, 8, 12, 0, 10, 4, 12, 7, 11, 1, 3, 11, 7, 1, 5, 2, 12,
+            (110): 9, 0, 10, 11, 6, 12, 4, 12, 6, 2, 9, 11, 1, 8, 8, 0, 12,
+            (127): 10, 9, 12, 11, 8, 8, 5, 11, 1, 10, 6, 4, 12, 11, 9, 1, 3,
+            (144): 8, 5, 10, 11, 9, 12, 8, 0, 9, 12, 6, 11, 4, 0, 12, 2, 2,
+            (161): 12, 6, 9
+            }
+         }
+         DATASET "NumberOfCells" {
+            DATATYPE  H5T_STD_I64LE
+            DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+            DATA {
+            (0): 54
+            }
+         }
+         DATASET "NumberOfConnectivityIds" {
+            DATATYPE  H5T_STD_I64LE
+            DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+            DATA {
+            (0): 164
+            }
+         }
+         DATASET "NumberOfPoints" {
+            DATATYPE  H5T_STD_I64LE
+            DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+            DATA {
+            (0): 13
+            }
+         }
+         DATASET "Offsets" {
+            DATATYPE  H5T_STD_I64LE
+            DATASPACE  SIMPLE { ( 55 ) / ( H5S_UNLIMITED ) }
+            DATA {
+            (0): 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+            (16): 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74,
+            (31): 77, 80, 83, 86, 89, 92, 96, 100, 104, 108, 112, 116, 120,
+            (44): 124, 128, 132, 136, 140, 144, 148, 152, 156, 160, 164
+            }
+         }
+         GROUP "PointData" {
+            DATASET "FamilyIdNode" {
+               DATATYPE  H5T_STD_I64LE
+               DATASPACE  SIMPLE { ( 13 ) / ( H5S_UNLIMITED ) }
+               DATA {
+               (0): 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+               }
+            }
+            DATASET "NumIdNode" {
+               DATATYPE  H5T_STD_I64LE
+               DATASPACE  SIMPLE { ( 13 ) / ( H5S_UNLIMITED ) }
+               DATA {
+               (0): 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13
+               }
+            }
+         }
+         DATASET "Points" {
+            DATATYPE  H5T_IEEE_F64LE
+            DATASPACE  SIMPLE { ( 13, 3 ) / ( H5S_UNLIMITED, 3 ) }
+            DATA {
+            (0,0): -3.2, 4.1, 10.4,
+            (1,0): -3.2, 4.1, 2.3,
+            (2,0): -3.2, 8.7, 10.4,
+            (3,0): -3.2, 8.7, 2.3,
+            (4,0): 2.1, 4.1, 10.4,
+            (5,0): 2.1, 4.1, 2.3,
+            (6,0): 2.1, 8.7, 10.4,
+            (7,0): 2.1, 8.7, 2.3,
+            (8,0): -3.2, 4.1, 6.3581,
+            (9,0): -3.2, 8.7, 6.3581,
+            (10,0): 2.1, 4.1, 6.3581,
+            (11,0): 2.1, 8.7, 6.3581,
+            (12,0): -0.55, 6.4, 8.37905
+            }
+         }
+         DATASET "Types" {
+            DATATYPE  H5T_STD_U8LE
+            DATASPACE  SIMPLE { ( 54 ) / ( H5S_UNLIMITED ) }
+            DATA {
+            (0): 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 5, 5, 5, 5,
+            (20): 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 10, 10, 10,
+            (39): 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10
+            }
+         }
+      }
+   }
+}
+}

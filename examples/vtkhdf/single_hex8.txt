@@ -1,0 +1,60 @@
+HDF5 "single_hex8.vtkhdf" {
+GROUP "/" {
+   GROUP "VTKHDF" {
+      ATTRIBUTE "Type" {
+         DATATYPE  H5T_STRING {
+            STRSIZE 16;
+            STRPAD H5T_STR_NULLPAD;
+            CSET H5T_CSET_ASCII;
+            CTYPE H5T_C_S1;
+         }
+         DATASPACE  SCALAR
+         DATA {
+         (0): "UnstructuredGrid"
+         }
+      }
+      ATTRIBUTE "Version" {
+         DATATYPE  H5T_STD_I64LE
+         DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
+         DATA {
+         (0): 2, 0
+         }
+      }
+      DATASET "Connectivity" {
+         DATATYPE  H5T_STD_I64LE
+         DATASPACE  SIMPLE { ( 8 ) / ( 8 ) }
+         DATA {
+         (0): 0, 1, 3, 2, 4, 5, 7, 6
+         }
+      }
+      DATASET "Offsets" {
+         DATATYPE  H5T_STD_I64LE
+         DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
+         DATA {
+         (0): 0, 8
+         }
+      }
+      DATASET "Points" {
+         DATATYPE  H5T_IEEE_F32LE
+         DATASPACE  SIMPLE { ( 8, 3 ) / ( 8, 3 ) }
+         DATA {
+         (0,0): 2, 0, 0,
+         (1,0): 2.25, 0, 0,
+         (2,0): 2, 0.25, 0,
+         (3,0): 2.25, 0.25, 0,
+         (4,0): 2, 0, 0.25,
+         (5,0): 2.25, 0, 0.25,
+         (6,0): 2, 0.25, 0.25,
+         (7,0): 2.25, 0.25, 0.25
+         }
+      }
+      DATASET "Types" {
+         DATATYPE  H5T_STD_U8LE
+         DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+         DATA {
+         (0): 12
+         }
+      }
+   }
+}
+}

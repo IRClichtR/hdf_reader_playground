@@ -1,0 +1,1 @@
+Les fichiers binaires roundtrip_particles.txt et roundtrip_particles2.cgns sont différents

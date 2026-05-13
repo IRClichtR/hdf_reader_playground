@@ -1,0 +1,694 @@
+full file
+HDF5 "write_test_single_tet.cgns" {
+FILE_CONTENTS {
+ group      /
+ dataset    / format
+ dataset    / hdf5version
+ group      /Base
+ dataset    /Base/ data
+ group      /Base/Zone1
+ dataset    /Base/Zone1/ data
+ group      /Base/Zone1/GridCoordinates
+ group      /Base/Zone1/GridCoordinates/CoordinateX
+ dataset    /Base/Zone1/GridCoordinates/CoordinateX/ data
+ group      /Base/Zone1/GridCoordinates/CoordinateY
+ dataset    /Base/Zone1/GridCoordinates/CoordinateY/ data
+ group      /Base/Zone1/GridCoordinates/CoordinateZ
+ dataset    /Base/Zone1/GridCoordinates/CoordinateZ/ data
+ group      /Base/Zone1/TET4
+ dataset    /Base/Zone1/TET4/ data
+ group      /Base/Zone1/TET4/ElementConnectivity
+ dataset    /Base/Zone1/TET4/ElementConnectivity/ data
+ group      /Base/Zone1/TET4/ElementRange
+ dataset    /Base/Zone1/TET4/ElementRange/ data
+ group      /Base/Zone1/ZoneType
+ dataset    /Base/Zone1/ZoneType/ data
+ group      /CGNSLibraryVersion
+ dataset    /CGNSLibraryVersion/ data
+ }
+}
+
+
+connectivity values
+
+
+HDF5 "write_test_single_tet.cgns" {
+DATASET "Base/Zone1/TET4/ElementConnectivity/ data" {
+   DATATYPE  H5T_STD_I32LE
+   DATASPACE  SIMPLE { ( 4 ) / ( 4 ) }
+   DATA {
+   (0): 1, 2, 3, 4
+   }
+}
+}
+
+
+check coordinates
+
+HDF5 "write_test_single_tet.cgns" {
+DATASET "Base/Zone1/GridCoordinates/CoordinateX/ data" {
+   DATATYPE  H5T_IEEE_F64LE
+   DATASPACE  SIMPLE { ( 4 ) / ( 4 ) }
+   DATA {
+   (0): 0, 1, 0, 0
+   }
+}
+}
+HDF5 "write_test_single_tet.cgns" {
+DATASET "Base/Zone1/GridCoordinates/CoordinateY/ data" {
+   DATATYPE  H5T_IEEE_F64LE
+   DATASPACE  SIMPLE { ( 4 ) / ( 4 ) }
+   DATA {
+   (0): 0, 0, 1, 0
+   }
+}
+}
+HDF5 "write_test_single_tet.cgns" {
+DATASET "Base/Zone1/GridCoordinates/CoordinateZ/ data" {
+   DATATYPE  H5T_IEEE_F64LE
+   DATASPACE  SIMPLE { ( 4 ) / ( 4 ) }
+   DATA {
+   (0): 0, 0, 0, 1
+   }
+}
+}
+HDF5 "write_test_single_tet.cgns" {
+GROUP "/" {
+   ATTRIBUTE "label" {
+      DATATYPE  H5T_STRING {
+         STRSIZE 33;
+         STRPAD H5T_STR_NULLPAD;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+      DATA {
+      (0): "Root Node of HDF5 File\000\000\000\000\000\000\000\000\000\000\000"
+      }
+   }
+   ATTRIBUTE "name" {
+      DATATYPE  H5T_STRING {
+         STRSIZE 33;
+         STRPAD H5T_STR_NULLPAD;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+      DATA {
+      (0): "HDF5 MotherNode\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+      }
+   }
+   ATTRIBUTE "type" {
+      DATATYPE  H5T_STRING {
+         STRSIZE 33;
+         STRPAD H5T_STR_NULLPAD;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+      DATA {
+      (0): "MT\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+      }
+   }
+   DATASET " format" {
+      DATATYPE  H5T_STD_I8LE
+      DATASPACE  SIMPLE { ( 15 ) / ( 15 ) }
+      DATA {
+      (0): 73, 69, 69, 69, 95, 76, 73, 84, 84, 76, 69, 95, 51, 50, 0
+      }
+   }
+   DATASET " hdf5version" {
+      DATATYPE  H5T_STD_I8LE
+      DATASPACE  SIMPLE { ( 33 ) / ( 33 ) }
+      DATA {
+      (0): 72, 68, 70, 53, 32, 86, 101, 114, 115, 105, 111, 110, 32, 49, 46,
+      (15): 49, 48, 46, 54, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+      }
+   }
+   GROUP "Base" {
+      ATTRIBUTE "flags" {
+         DATATYPE  H5T_STD_I32LE
+         DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+         DATA {
+         (0): 1
+         }
+      }
+      ATTRIBUTE "label" {
+         DATATYPE  H5T_STRING {
+            STRSIZE 33;
+            STRPAD H5T_STR_NULLPAD;
+            CSET H5T_CSET_ASCII;
+            CTYPE H5T_C_S1;
+         }
+         DATASPACE  SCALAR
+         DATA {
+         (0): "CGNSBase_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+         }
+      }
+      ATTRIBUTE "name" {
+         DATATYPE  H5T_STRING {
+            STRSIZE 33;
+            STRPAD H5T_STR_NULLPAD;
+            CSET H5T_CSET_ASCII;
+            CTYPE H5T_C_S1;
+         }
+         DATASPACE  SCALAR
+         DATA {
+         (0): "Base\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+         }
+      }
+      ATTRIBUTE "type" {
+         DATATYPE  H5T_STRING {
+            STRSIZE 33;
+            STRPAD H5T_STR_NULLPAD;
+            CSET H5T_CSET_ASCII;
+            CTYPE H5T_C_S1;
+         }
+         DATASPACE  SCALAR
+         DATA {
+         (0): "I4\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+         }
+      }
+      DATASET " data" {
+         DATATYPE  H5T_STD_I32LE
+         DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
+         DATA {
+         (0): 3, 3
+         }
+      }
+      GROUP "Zone1" {
+         ATTRIBUTE "flags" {
+            DATATYPE  H5T_STD_I32LE
+            DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+            DATA {
+            (0): 1
+            }
+         }
+         ATTRIBUTE "label" {
+            DATATYPE  H5T_STRING {
+               STRSIZE 33;
+               STRPAD H5T_STR_NULLPAD;
+               CSET H5T_CSET_ASCII;
+               CTYPE H5T_C_S1;
+            }
+            DATASPACE  SCALAR
+            DATA {
+            (0): "Zone_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+            }
+         }
+         ATTRIBUTE "name" {
+            DATATYPE  H5T_STRING {
+               STRSIZE 33;
+               STRPAD H5T_STR_NULLPAD;
+               CSET H5T_CSET_ASCII;
+               CTYPE H5T_C_S1;
+            }
+            DATASPACE  SCALAR
+            DATA {
+            (0): "Zone1\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+            }
+         }
+         ATTRIBUTE "type" {
+            DATATYPE  H5T_STRING {
+               STRSIZE 33;
+               STRPAD H5T_STR_NULLPAD;
+               CSET H5T_CSET_ASCII;
+               CTYPE H5T_C_S1;
+            }
+            DATASPACE  SCALAR
+            DATA {
+            (0): "I4\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+            }
+         }
+         DATASET " data" {
+            DATATYPE  H5T_STD_I32LE
+            DATASPACE  SIMPLE { ( 3 ) / ( 3 ) }
+            DATA {
+            (0): 4, 1, 0
+            }
+         }
+         GROUP "GridCoordinates" {
+            ATTRIBUTE "flags" {
+               DATATYPE  H5T_STD_I32LE
+               DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+               DATA {
+               (0): 1
+               }
+            }
+            ATTRIBUTE "label" {
+               DATATYPE  H5T_STRING {
+                  STRSIZE 33;
+                  STRPAD H5T_STR_NULLPAD;
+                  CSET H5T_CSET_ASCII;
+                  CTYPE H5T_C_S1;
+               }
+               DATASPACE  SCALAR
+               DATA {
+               (0): "GridCoordinates_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+               }
+            }
+            ATTRIBUTE "name" {
+               DATATYPE  H5T_STRING {
+                  STRSIZE 33;
+                  STRPAD H5T_STR_NULLPAD;
+                  CSET H5T_CSET_ASCII;
+                  CTYPE H5T_C_S1;
+               }
+               DATASPACE  SCALAR
+               DATA {
+               (0): "GridCoordinates\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+               }
+            }
+            ATTRIBUTE "type" {
+               DATATYPE  H5T_STRING {
+                  STRSIZE 33;
+                  STRPAD H5T_STR_NULLPAD;
+                  CSET H5T_CSET_ASCII;
+                  CTYPE H5T_C_S1;
+               }
+               DATASPACE  SCALAR
+               DATA {
+               (0): "MT\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+               }
+            }
+            GROUP "CoordinateX" {
+               ATTRIBUTE "flags" {
+                  DATATYPE  H5T_STD_I32LE
+                  DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+                  DATA {
+                  (0): 1
+                  }
+               }
+               ATTRIBUTE "label" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "DataArray_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "name" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "CoordinateX\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "type" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "R8\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               DATASET " data" {
+                  DATATYPE  H5T_IEEE_F64LE
+                  DATASPACE  SIMPLE { ( 4 ) / ( 4 ) }
+                  DATA {
+                  (0): 0, 1, 0, 0
+                  }
+               }
+            }
+            GROUP "CoordinateY" {
+               ATTRIBUTE "flags" {
+                  DATATYPE  H5T_STD_I32LE
+                  DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+                  DATA {
+                  (0): 1
+                  }
+               }
+               ATTRIBUTE "label" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "DataArray_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "name" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "CoordinateY\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "type" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "R8\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               DATASET " data" {
+                  DATATYPE  H5T_IEEE_F64LE
+                  DATASPACE  SIMPLE { ( 4 ) / ( 4 ) }
+                  DATA {
+                  (0): 0, 0, 1, 0
+                  }
+               }
+            }
+            GROUP "CoordinateZ" {
+               ATTRIBUTE "flags" {
+                  DATATYPE  H5T_STD_I32LE
+                  DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+                  DATA {
+                  (0): 1
+                  }
+               }
+               ATTRIBUTE "label" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "DataArray_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "name" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "CoordinateZ\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "type" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "R8\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               DATASET " data" {
+                  DATATYPE  H5T_IEEE_F64LE
+                  DATASPACE  SIMPLE { ( 4 ) / ( 4 ) }
+                  DATA {
+                  (0): 0, 0, 0, 1
+                  }
+               }
+            }
+         }
+         GROUP "TET4" {
+            ATTRIBUTE "flags" {
+               DATATYPE  H5T_STD_I32LE
+               DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+               DATA {
+               (0): 1
+               }
+            }
+            ATTRIBUTE "label" {
+               DATATYPE  H5T_STRING {
+                  STRSIZE 33;
+                  STRPAD H5T_STR_NULLPAD;
+                  CSET H5T_CSET_ASCII;
+                  CTYPE H5T_C_S1;
+               }
+               DATASPACE  SCALAR
+               DATA {
+               (0): "Elements_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+               }
+            }
+            ATTRIBUTE "name" {
+               DATATYPE  H5T_STRING {
+                  STRSIZE 33;
+                  STRPAD H5T_STR_NULLPAD;
+                  CSET H5T_CSET_ASCII;
+                  CTYPE H5T_C_S1;
+               }
+               DATASPACE  SCALAR
+               DATA {
+               (0): "TET4\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+               }
+            }
+            ATTRIBUTE "type" {
+               DATATYPE  H5T_STRING {
+                  STRSIZE 33;
+                  STRPAD H5T_STR_NULLPAD;
+                  CSET H5T_CSET_ASCII;
+                  CTYPE H5T_C_S1;
+               }
+               DATASPACE  SCALAR
+               DATA {
+               (0): "I4\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+               }
+            }
+            DATASET " data" {
+               DATATYPE  H5T_STD_I32LE
+               DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
+               DATA {
+               (0): 10, 0
+               }
+            }
+            GROUP "ElementConnectivity" {
+               ATTRIBUTE "flags" {
+                  DATATYPE  H5T_STD_I32LE
+                  DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+                  DATA {
+                  (0): 1
+                  }
+               }
+               ATTRIBUTE "label" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "DataArray_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "name" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "ElementConnectivity\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "type" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "I4\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               DATASET " data" {
+                  DATATYPE  H5T_STD_I32LE
+                  DATASPACE  SIMPLE { ( 4 ) / ( 4 ) }
+                  DATA {
+                  (0): 1, 2, 3, 4
+                  }
+               }
+            }
+            GROUP "ElementRange" {
+               ATTRIBUTE "flags" {
+                  DATATYPE  H5T_STD_I32LE
+                  DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+                  DATA {
+                  (0): 1
+                  }
+               }
+               ATTRIBUTE "label" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "IndexRange_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "name" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "ElementRange\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               ATTRIBUTE "type" {
+                  DATATYPE  H5T_STRING {
+                     STRSIZE 33;
+                     STRPAD H5T_STR_NULLPAD;
+                     CSET H5T_CSET_ASCII;
+                     CTYPE H5T_C_S1;
+                  }
+                  DATASPACE  SCALAR
+                  DATA {
+                  (0): "I4\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+               }
+               DATASET " data" {
+                  DATATYPE  H5T_STD_I32LE
+                  DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
+                  DATA {
+                  (0): 1, 1
+                  }
+               }
+            }
+         }
+         GROUP "ZoneType" {
+            ATTRIBUTE "flags" {
+               DATATYPE  H5T_STD_I32LE
+               DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+               DATA {
+               (0): 1
+               }
+            }
+            ATTRIBUTE "label" {
+               DATATYPE  H5T_STRING {
+                  STRSIZE 33;
+                  STRPAD H5T_STR_NULLPAD;
+                  CSET H5T_CSET_ASCII;
+                  CTYPE H5T_C_S1;
+               }
+               DATASPACE  SCALAR
+               DATA {
+               (0): "ZoneType_t\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+               }
+            }
+            ATTRIBUTE "name" {
+               DATATYPE  H5T_STRING {
+                  STRSIZE 33;
+                  STRPAD H5T_STR_NULLPAD;
+                  CSET H5T_CSET_ASCII;
+                  CTYPE H5T_C_S1;
+               }
+               DATASPACE  SCALAR
+               DATA {
+               (0): "ZoneType\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+               }
+            }
+            ATTRIBUTE "type" {
+               DATATYPE  H5T_STRING {
+                  STRSIZE 33;
+                  STRPAD H5T_STR_NULLPAD;
+                  CSET H5T_CSET_ASCII;
+                  CTYPE H5T_C_S1;
+               }
+               DATASPACE  SCALAR
+               DATA {
+               (0): "C1\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+               }
+            }
+            DATASET " data" {
+               DATATYPE  H5T_STD_I8LE
+               DATASPACE  SIMPLE { ( 12 ) / ( 12 ) }
+               DATA {
+               (0): 85, 110, 115, 116, 114, 117, 99, 116, 117, 114, 101, 100
+               }
+            }
+         }
+      }
+   }
+   GROUP "CGNSLibraryVersion" {
+      ATTRIBUTE "flags" {
+         DATATYPE  H5T_STD_I32LE
+         DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+         DATA {
+         (0): 1
+         }
+      }
+      ATTRIBUTE "label" {
+         DATATYPE  H5T_STRING {
+            STRSIZE 33;
+            STRPAD H5T_STR_NULLPAD;
+            CSET H5T_CSET_ASCII;
+            CTYPE H5T_C_S1;
+         }
+         DATASPACE  SCALAR
+         DATA {
+         (0): "CGNSLibraryVersion_t\000\000\000\000\000\000\000\000\000\000\000\000\000"
+         }
+      }
+      ATTRIBUTE "name" {
+         DATATYPE  H5T_STRING {
+            STRSIZE 33;
+            STRPAD H5T_STR_NULLPAD;
+            CSET H5T_CSET_ASCII;
+            CTYPE H5T_C_S1;
+         }
+         DATASPACE  SCALAR
+         DATA {
+         (0): "CGNSLibraryVersion\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+         }
+      }
+      ATTRIBUTE "type" {
+         DATATYPE  H5T_STRING {
+            STRSIZE 33;
+            STRPAD H5T_STR_NULLPAD;
+            CSET H5T_CSET_ASCII;
+            CTYPE H5T_C_S1;
+         }
+         DATASPACE  SCALAR
+         DATA {
+         (0): "R4\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+         }
+      }
+      DATASET " data" {
+         DATATYPE  H5T_IEEE_F32LE
+         DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
+         DATA {
+         (0): 3.4
+         }
+      }
+   }
+}
+}
