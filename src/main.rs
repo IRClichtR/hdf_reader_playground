@@ -739,9 +739,9 @@ fn write_elements(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::err
         let er = section.create_group("ElementRange")?;
         write_node_attrs(&er, "ElementRange", "IndexRange_t", "I4", 1)?;
         er.new_dataset::<i32>()
-            .shape([2, 1])
+            .shape([2])
             .create(" data")?
-            .write(&ndarray::arr2(&[[range_start], [range_end]]))?;
+            .write(&ndarray::arr1(&[range_start, range_end]))?;
 
         // ElementConnectivity
         let conn: Vec<i32> = match nodes_per_cgns_code(cgns_code) {
@@ -812,9 +812,9 @@ fn write_bcs(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::error::E
         let pl = bc.create_group("PointList")?;
         write_node_attrs(&pl, "PointList", "IndexArray_t", "I4", 1)?;
         pl.new_dataset::<i32>()
-            .shape([1, n])
+            .shape([n])
             .create(" data")?
-            .write(&ndarray::Array2::from_shape_vec((1, n), face_ids.clone())?)?;
+            .write(&ndarray::Array1::from_shape_vec((n), face_ids.clone())?)?;
     }
     Ok(())
 }
@@ -880,6 +880,7 @@ pub fn write_cgns(path: &Path, mesh: UMeshView) -> Result<(), Box<dyn std::error
 
     let zone = write_zone(&base, n_vertices, n_cells)?;
     write_coords(&zone, &mesh)?;
+    // panic!("Est ce que tout va bien jusqu'ici ?");
     write_elements(&zone, &mesh)?;
     write_bcs(&zone, &mesh)?;
 
@@ -888,8 +889,8 @@ pub fn write_cgns(path: &Path, mesh: UMeshView) -> Result<(), Box<dyn std::error
 
 pub fn write_roundtrip_test() -> Result<(), Box<dyn std::error::Error>> {
     let mesh = read_cgns(Path::new("examples/cgns/particles_example.cgns"))?;
-    write_cgns(Path::new("examples/cgns/roundtrip_particles6.cgns"), mesh.view())?;
-    println!("wrote roundtrip_particles6.cgns");
+    write_cgns(Path::new("examples/cgns/roundtrip_particles8.cgns"), mesh.view())?;
+    println!("wrote roundtrip_particles8.cgns");
     Ok(())
 }
 
