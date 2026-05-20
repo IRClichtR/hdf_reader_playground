@@ -719,12 +719,18 @@ fn write_coords(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::error
 }
 
 fn write_elements(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::error::Error>> {
+    
+    // Keep track of global CGNS element index (1-based) as we write sections, 
+    // to ensure correct family tag assignment in BCs.
     let mut range_start = 1_i32;
 
+    // Iterate through blocks in mesh, group by element type, write one section per type
     for (elem_type, block) in mesh.blocks() {
         let cgns_code    = element_type_to_cgns(*elem_type);
         let n_elems      = block.len();
         let range_end    = range_start + n_elems as i32 - 1;
+
+        // Name group with element type for readability
         let section_name = format!("{elem_type:?}");
 
         // section group
@@ -819,7 +825,55 @@ fn write_bcs(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::error::E
     Ok(())
 }
 
-// ── entry point ───────────────────────────────────────────────────────────────
+//     match nodes_per_cgns_code(cgns_code) {
+//         Some(_) => {
+//             block.iter(coords)
+//                 .flat_map(|elem| 
+//                     elem.connectivity
+//                         .iter()
+//                         .map(|&n| (n + 1))
+//                 )
+//                 .collect()
+//         }
+
+//         None => {
+//             if is_ngon(cgns_code) {
+//                 block.iter(coords)
+//                     .flat_map(|elem| {
+//                         let n = elem.connectivity.len() as i32;
+//                         std::iter::once(n)
+//                             .chain(elem.connectivity.iter().map(|&v| (v + 1) as i32))
+//                     })
+//                     .collect()
+//             } else if is_nfaces(cgns_code) {
+//                 block.iter(coords)
+//                     .flat_map(|elem| {
+//                         let n = elem.connectivity.len() as i32;
+//                         std::iter::once(n)
+//                             // Cast to i32 directly — no arithmetic.
+//                             // The value is already a signed 1-based
+//                             // face reference; no conversion needed.
+//                             .map(&v)
+//                     })
+//                     .collect()
+//             } else {
+//                 // Treat as NGON with 1-based node indices by default, but warn 
+//                 // since this is a common error case that leads to silent data 
+//                 // corruption.
+//                 eprintln!("Unrecognized poly cgns_code, treated as 1-based node indices: {cgns_code}");
+//                 block.iter(coords)
+//                     .flat_map(|elem| 
+//                         elem.connectivity
+//                             .iter()
+//                             .map(|&n| n + 1)
+//                     )
+//                     .collect()
+//             }
+//         }
+//     }
+// }
+
+// ── entry point ─────────────────────────────────────────────────────────────
 
 pub fn write_cgns(path: &Path, mesh: UMeshView) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::create(path)?;
