@@ -177,6 +177,27 @@ pub fn write(path: &Path, mesh: UMeshView) -> Result<(), Box<dyn std::error::Err
 // 
 // ── primitives ────────────────────────────────────────────────────────────────
 
+
+// CGNS defines two "polyhedral" element types with variable connectivity 
+// length: NGON_n and NFACE_n, where n is the number of nodes per face. They 
+// are encoded with cgns_code 22 and 23, respectively, and their connectivity 
+// is stored as a length-prefixed list of node indices: [n_nodes, v0, v1, ..., 
+// vn, n_nodes, v0, ...]. We need to handle these separately from the regular 
+// fixed-stride elements.
+
+// Return true if element describes a face-list section (NGON_n)
+// inline to speed up the check since we'll be doing it for every element
+#[inline]
+fn is_ngon(cgns_code: i32) -> bool {
+    cgns_code == 22
+}
+
+// Return true if element describes a cell-face section (NFACE_n)
+#[inline]
+fn is_nfaces(cgns_code: i32) -> bool {
+    cgns_code == 23
+}
+
 fn read_string_data(group: &Group) -> Result<String, Box<dyn std::error::Error>> {
     let s: String = group
         .dataset(" data")?
@@ -368,6 +389,9 @@ fn read_elements(
     mesh: &mut UMesh,
     bc_families: &std::collections::HashMap<i32, usize>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+
+    // Collect all element sections "Elements_t" and sort by starting global 
+    // index (from ElementRange) to ensure we assign family tags correctly
     let mut sections = children_with_label(zone, "Elements_t")?;
 
     sections.sort_by_key(|s| {
@@ -380,16 +404,26 @@ fn read_elements(
             .unwrap_or(i32::MAX)
     });
 
+    // We run a global counter of CGNS element indices (1-based) as we read 
+    // through the sections. 
     let mut global_idx = 1_i32; // 1-based running counter
 
+    // Iterate through sections in global index order, read connectivity, add elements to mesh with family tags from bc_families map.
     for section in &sections {
+        // read cgns_code from section's " data" dataset
         let meta: Vec<i32> = section
             .dataset(" data")?
             .as_reader()
             .read_dyn::<i32>()?
             .into_raw_vec_and_offset().0;
+        
+        // meta[0] is cgns_code, 
+        // meta[1] is parentFlag we don't use it
         let cgns_code = meta[0];
 
+        // map cgns_code to ElementType, skip if unsupported
+        // keep global_idx accurate by counting skipped elements based on 
+        // ElementRange
         let Some(elem_type) = cgns_code_to_element_type(cgns_code) else {
             // count skipped elements to keep global_idx accurate
             let range: Vec<i32> = find_first_child_with_label(section, "IndexRange_t")?
@@ -402,6 +436,7 @@ fn read_elements(
             continue;
         };
 
+        // read connectivity as flat list of node indices (1-based)
         let conn: Vec<i32> = section
             .group("ElementConnectivity")?
             .dataset(" data")?
@@ -409,32 +444,69 @@ fn read_elements(
             .read_dyn::<i32>()?
             .into_raw_vec_and_offset().0;
 
+        // dispatch based on section type
         match nodes_per_cgns_code(cgns_code) {
             Some(stride) => {
                 for chunk in conn.chunks(stride) {
                     let family = bc_families.get(&global_idx).copied();
-                    let nodes: Vec<usize> = chunk.iter().map(|&n| (n - 1) as usize).collect();
+                    let nodes: Vec<usize> = chunk
+                        .iter()
+                        .map(|&n| (n - 1) as usize)
+                        .collect();
                     mesh.add_element(elem_type, &nodes, family, None);
                     global_idx += 1;
                 }
             }
+
+            // Format:  [n_entries, v0, …, v_{n-1},  n_entries, …]
+            //
+            // CRITICAL: the index-space of the values is TYPE-DEPENDENT:
+            //
+            //   NGON_n  (code 22) → values are 1-based NODE indices.
+            //                       Decode: (v - 1) as usize.
+            //
+            //   NFACE_n (code 23) → values are SIGNED 1-based FACE indices.
+            //                       The sign encodes face orientation; it must
+            //                       NOT be stripped by subtraction before the
+            //                       cast — that would wrap negatives to huge
+            //                       usize values and trigger a false bounds
+            //                       failure.  Use unsigned_abs() - 1 instead.
             None => {
-                // length-prefixed poly (NGON_n, NFACE_n)
                 let mut i = 0;
                 while i < conn.len() {
-                    let n_nodes = conn[i] as usize;
+                    // Read len prefix for element
+                    let n_entries = conn[i] as usize;
                     i += 1;
-                    if i + n_nodes > conn.len() {
-                        eprintln!("warning: malformed poly connectivity, stopping");
-                        break;
+
+                    // Guard against malformed files with incorrect 
+                    // connectivity length
+                    if i + n_entries > conn.len() {
+                        return Err(format!(
+                            "cgns_io: malformed poly connectivity in section(cgns_code={cgns_code}):  claimed {n_entries} entries at offset {} but buffer length is {}",
+                            i, conn.len()
+                        ).into());
                     }
+
                     let family = bc_families.get(&global_idx).copied();
-                    let nodes: Vec<usize> = conn[i..i + n_nodes]
-                        .iter()
-                        .map(|&v| (v - 1) as usize)
-                        .collect();
-                    mesh.add_element(elem_type, &nodes, family, None);
-                    i += n_nodes;
+                    let slice = &conn[i..i + n_entries];
+
+                    let entries: Vec<usize> = if is_ngon(cgns_code) {
+                        slice.iter()
+                            .map(|&n| (n - 1) as usize)
+                            .collect()
+                    } else if is_nfaces(cgns_code) {
+                        slice.iter()
+                            .map(|&n| n.unsigned_abs() as usize - 1)
+                            .collect()
+                    } else {
+                        eprintln!("Unrecognized poly cgns_code, treated as 1-based node indices: {cgns_code}");
+                        slice.iter()
+                            .map(|&n| (n - 1) as usize)
+                            .collect()
+                    };
+                    
+                    mesh.add_element(elem_type, &entries, family, None);
+                    i += n_entries;
                     global_idx += 1;
                 }
             }
@@ -489,78 +561,6 @@ pub fn read_cgns(path: &Path) -> Result<UMesh, Box<dyn std::error::Error>> {
 
 // ── write primitives ──────────────────────────────────────────────────────────
 use hdf5_metno::Datatype;
-
-// fn fixed_nullterm_ascii_type(size: usize) -> hdf5_metno::Result<Datatype> {
-//     use hdf5_metno_sys::h5t::*;
-//     unsafe {
-//         let tid = H5Tcopy(*H5T_C_S1);
-//         H5Tset_size(tid, size);
-//         H5Tset_strpad(tid, H5T_str_t::H5T_STR_NULLTERM);
-//         H5Tset_cset(tid, H5T_cset_t::H5T_CSET_ASCII);
-//         Datatype::try_from(tid)?
-//     }
-// }
-
-// fn write_string_attr(group: &Group, attr_name: &str, value: &str)
-//     -> Result<(), Box<dyn std::error::Error>>
-// {
-//     let len = value.len() + 1; // +1 for null terminator
-//     // match what CGNS writers do: type is always 3, label/name padded to 33
-//     let padded_len = if attr_name == "type" { 3 } else { 33 };
-//     assert!(len <= padded_len, "{attr_name} value '{value}' too long");
-
-//     // hdf5-metno requires const generic — dispatch on the two sizes
-//     if padded_len == 3 {
-//         let s = FixedAscii::<3>::from_ascii(value.as_bytes())?;
-//         group.new_attr::<FixedAscii<3>>().shape(()).create(attr_name)?.write_scalar(&s)?;
-//     } else {
-//         let s = FixedAscii::<33>::from_ascii(value.as_bytes())?;
-//         group.new_attr::<FixedAscii<33>>().shape(()).create(attr_name)?.write_scalar(&s)?;
-//     }
-//     Ok(())
-// }
-
-// fn write_node_attrs(
-//     group: &Group,
-//     name: &str,
-//     label: &str,
-//     type_str: &str,
-//     flags: i32,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-//     write_string_attr(group, "label", label)?;
-//     write_string_attr(group, "name", name)?;
-//     write_string_attr(group, "type", type_str)?;
-//     group.new_attr::<i32>()
-//         .shape([1])
-//         .create("flags")?
-//         .write(&ndarray::arr1(&[flags]))?;
-//     Ok(())
-// }
-
-// fn write_node_attrs(
-//     group: &Group,
-//     name: &str,
-//     label: &str,
-//     type_str: &str,
-//     flags: i32,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-//     use hdf5_metno::types::VarLenUnicode;
-
-//     for (attr_name, value) in [("label", label), ("name", name), ("type", type_str)] {
-//         let s: VarLenUnicode = value.parse()
-//             .map_err(|_| format!("'{value}' is not valid unicode"))?;
-//         group.new_attr::<VarLenUnicode>()
-//             .shape(())
-//             .create(attr_name)?
-//             .write_scalar(&s)?;
-//     }
-//     group.new_attr::<i32>()
-//         .shape([1])
-//         .create("flags")?
-//         .write(&ndarray::arr1(&[flags]))?;
-//     Ok(())
-// }
-// 
 use hdf5_metno_sys::h5t::*;
 use hdf5_metno_sys::h5a::*;
 use hdf5_metno_sys::h5s::*;
@@ -826,24 +826,6 @@ pub fn write_cgns(path: &Path, mesh: UMeshView) -> Result<(), Box<dyn std::error
 
     // root group
     write_root_attrs(&file);
-    // let root = file.as_group()?;
-    
-    // {
-    //     use hdf5_metno::types::VarLenUnicode;
-    //     let root = file.as_group()?;
-    //     for (attr_name, value) in [
-    //         ("label", "Root Node of HDF5 File"),
-    //         ("name",  "HDF5 MotherNode"),
-    //         ("type",  "MT"),
-    //     ] {
-    //         let s: VarLenUnicode = value.parse()
-    //             .map_err(|_| format!("'{value}' parse failed"))?;
-    //         root.new_attr::<VarLenUnicode>()
-    //             .shape(())
-    //             .create(attr_name)?
-    //             .write_scalar(&s)?;
-    //     }
-    // }
     
     // " format" — 15 bytes null-padded
     {
@@ -865,23 +847,40 @@ pub fn write_cgns(path: &Path, mesh: UMeshView) -> Result<(), Box<dyn std::error
             .write(&Array1::from(ver.to_vec()))?;
     }
 
+    // write CGNSLibraryVersion_t group
     write_version(&file)?;
 
-    // dimensions derived from mesh
+    // Derive mesh dimensions
+    // cell_dim and phys_dim are required by vtkCGNSReader. 
+    // `cell_dim` is topological dimension of the volume elements (2 or 3)
+    // `phys_dim` is the number of coordinate arrays in GridCoordinates_t 
+    // (2 or 3)
+    // they become 2 i32 values in the " data" dataset of the Base group
     let top_dim  = mesh.topological_dimension().unwrap_or(Dimension::D3);
     let cell_dim = u8::from(top_dim) as i32;
     let phys_dim = mesh.space_dimension() as i32;
 
+    // write base group with cell_dim and phys_dim in its " data" dataset
     let base = write_base(&file, cell_dim, phys_dim)?;
 
-    // n_cells = volume elements only — boundary patches excluded
+    // Zone size array is [n_vertices, n_cells, 0] where:
+    //   - n_cells = count of volume elements only (boundary patches excluded).
+    //   - The trailing 0 is the "boundary vertex count" (0 = unspecified).
     let n_cells   = mesh.num_elements_of_dim(top_dim);
     let n_vertices = mesh.coords().nrows();
-
     let zone = write_zone(&base, n_vertices, n_cells)?;
+
+    // Write coordinates
     write_coords(&zone, &mesh)?;
-    // panic!("Est ce que tout va bien jusqu'ici ?");
+
+    // One section per block. The NGON/NFACE index-space split
+    // is handled inside write_elements / encode_connectivity
     write_elements(&zone, &mesh)?;
+
+    // Boundary conditions reference element indices by their 1-based CGNS
+    // position within the contiguous ElementRange written in Element_t.
+    // write_bcs rebuilds the same range_start arithmetic to ensure the
+    // PointList values match.
     write_bcs(&zone, &mesh)?;
 
     Ok(())
