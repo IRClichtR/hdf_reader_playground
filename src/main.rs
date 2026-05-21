@@ -349,7 +349,7 @@ fn read_coordinates(
 // first pass: collect BC ranges/pointlists → map global_cgns_idx → family_id
 fn collect_bc_families(
     zone: &Group,
-) -> Result<std::collections::HashMap<i32, usize>, Box<dyn std::error::Error>> {
+) -> Result<std::collections::HashMap<i64, usize>, Box<dyn std::error::Error>> {
     let mut map = std::collections::HashMap::new();
 
     let Ok(zonebc) = find_first_child_with_label(zone, "ZoneBC_t") else {
@@ -361,15 +361,15 @@ fn collect_bc_families(
         .enumerate()
         .map(|(i, bc)| (i + 1, bc))
     {
-        let face_ids: Vec<i32> = if let Ok(pl) = bc.group("PointList") {
+        let face_ids: Vec<i64> = if let Ok(pl) = bc.group("PointList") {
             pl.dataset(" data")?
                 .as_reader()
-                .read_dyn::<i32>()?
+                .read_dyn::<i64>()?
                 .into_raw_vec_and_offset().0
         } else if let Ok(pr) = bc.group("PointRange") {
             let flat = pr.dataset(" data")?
                 .as_reader()
-                .read_dyn::<i32>()?
+                .read_dyn::<i64>()?
                 .into_raw_vec_and_offset().0;
             (flat[0]..=flat[1]).collect()
         } else {
@@ -387,7 +387,7 @@ fn collect_bc_families(
 fn read_elements(
     zone: &Group,
     mesh: &mut UMesh,
-    bc_families: &std::collections::HashMap<i32, usize>,
+    bc_families: &std::collections::HashMap<i64, usize>,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
     // Collect all element sections "Elements_t" and sort by starting global 
@@ -398,15 +398,15 @@ fn read_elements(
         find_first_child_with_label(s, "IndexRange_t")
             .and_then(|r| r.dataset(" data")
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>))
-            .and_then(|d| d.as_reader().read_dyn::<i32>()
+            .and_then(|d| d.as_reader().read_dyn::<i64>()
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>))
             .map(|a| a.into_raw_vec_and_offset().0[0])
-            .unwrap_or(i32::MAX)
+            .unwrap_or(i64::MAX)
     });
 
     // We run a global counter of CGNS element indices (1-based) as we read 
     // through the sections. 
-    let mut global_idx = 1_i32; // 1-based running counter
+    let mut global_idx = 1_i64; // 1-based running counter
 
     // Iterate through sections in global index order, read connectivity, add elements to mesh with family tags from bc_families map.
     for section in &sections {
@@ -426,10 +426,10 @@ fn read_elements(
         // ElementRange
         let Some(elem_type) = cgns_code_to_element_type(cgns_code) else {
             // count skipped elements to keep global_idx accurate
-            let range: Vec<i32> = find_first_child_with_label(section, "IndexRange_t")?
+            let range: Vec<i64> = find_first_child_with_label(section, "IndexRange_t")?
                 .dataset(" data")?
                 .as_reader()
-                .read_dyn::<i32>()?
+                .read_dyn::<i64>()?
                 .into_raw_vec_and_offset().0;
             global_idx += range[1] - range[0] + 1;
             eprintln!("warning: skipping unsupported CGNS type {cgns_code}");
@@ -437,11 +437,11 @@ fn read_elements(
         };
 
         // read connectivity as flat list of node indices (1-based)
-        let conn: Vec<i32> = section
+        let conn: Vec<i64> = section
             .group("ElementConnectivity")?
             .dataset(" data")?
             .as_reader()
-            .read_dyn::<i32>()?
+            .read_dyn::<i64>()?
             .into_raw_vec_and_offset().0;
 
         // dispatch based on section type
@@ -752,20 +752,14 @@ fn write_elements(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::err
         // ElementConnectivity
         let conn: Vec<i32> = match nodes_per_cgns_code(cgns_code) {
             Some(_) => {
-                // regular — flat 0-based → 1-based
-                block.iter(mesh.coords())
-                    .flat_map(|elem| elem.connectivity.iter().map(|&n| (n + 1) as i32))
-                    .collect()
-            }
-            None => {
-                // poly — length-prefixed: [n_nodes, v0..vn, ...]
                 block.iter(mesh.coords())
                     .flat_map(|elem| {
-                        let n = elem.connectivity.len() as i32;
-                        std::iter::once(n)
-                            .chain(elem.connectivity.iter().map(|&v| (v + 1) as i32))
+                        elem.connectivity
+                            .iter()
+                            .map(|n| )
                     })
-                    .collect()
+            }
+            None => {
             }
         };
 
