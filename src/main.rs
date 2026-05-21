@@ -656,7 +656,7 @@ fn write_version(file: &File) -> Result<(), Box<dyn std::error::Error>> {
     node.new_dataset::<f32>()
         .shape([1])
         .create(" data")?
-        .write(&arr1(&[3.4_f32]))?;
+        .write(&arr1(&[3.4_f32]))?; // Write 3.4 CGNS version
     Ok(())
 }
 
@@ -680,7 +680,7 @@ fn write_zone(
     n_cells: usize,
 ) -> Result<Group, Box<dyn std::error::Error>> {
     let zone = base.create_group("Zone1")?;
-    write_node_attrs(&zone, "Zone1", "Zone_t", "I4", 1)?;
+    write_node_attrs(&zone, "Zone1", "Zone_t", "I8", 1)?;
     // shape [3, 1] — matches real CGNS files, required by vtkCGNSReader
     zone.new_dataset::<i32>()
         .shape([3, 1])
@@ -743,29 +743,39 @@ fn write_elements(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::err
 
         // ElementRange — shape [2, 1] required by vtkCGNSReader
         let er = section.create_group("ElementRange")?;
-        write_node_attrs(&er, "ElementRange", "IndexRange_t", "I4", 1)?;
-        er.new_dataset::<i32>()
+        write_node_attrs(&er, "ElementRange", "IndexRange_t", "I8", 1)?;
+        er.new_dataset::<i64>()
             .shape([2])
             .create(" data")?
             .write(&ndarray::arr1(&[range_start, range_end]))?;
 
         // ElementConnectivity
-        let conn: Vec<i32> = match nodes_per_cgns_code(cgns_code) {
+        let conn: Vec<i64> = match nodes_per_cgns_code(cgns_code) {
             Some(_) => {
                 block.iter(mesh.coords())
                     .flat_map(|elem| {
                         elem.connectivity
                             .iter()
-                            .map(|n| )
+                            .map(|&n| n as i64)
                     })
+                    .collect()
             }
             None => {
+                block.iter(mesh.coords())
+                    .flat_map(|elem| {
+                        let n = elem.connectivity.len() as i64;
+                        std::iter::once(n)
+                            .chain(elem.connectivity
+                            .iter()
+                            .map(|&v| (v + 1) as i64))
+                        })
+                        .collect()
             }
         };
 
         let conn_node = section.create_group("ElementConnectivity")?;
-        write_node_attrs(&conn_node, "ElementConnectivity", "DataArray_t", "I4", 1)?;
-        conn_node.new_dataset::<i32>()
+        write_node_attrs(&conn_node, "ElementConnectivity", "DataArray_t", "I8", 1)?;
+        conn_node.new_dataset::<i64>()
             .shape([conn.len()])
             .create(" data")?
             .write(&Array1::from(conn))?;
@@ -819,53 +829,6 @@ fn write_bcs(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::error::E
     Ok(())
 }
 
-//     match nodes_per_cgns_code(cgns_code) {
-//         Some(_) => {
-//             block.iter(coords)
-//                 .flat_map(|elem| 
-//                     elem.connectivity
-//                         .iter()
-//                         .map(|&n| (n + 1))
-//                 )
-//                 .collect()
-//         }
-
-//         None => {
-//             if is_ngon(cgns_code) {
-//                 block.iter(coords)
-//                     .flat_map(|elem| {
-//                         let n = elem.connectivity.len() as i32;
-//                         std::iter::once(n)
-//                             .chain(elem.connectivity.iter().map(|&v| (v + 1) as i32))
-//                     })
-//                     .collect()
-//             } else if is_nfaces(cgns_code) {
-//                 block.iter(coords)
-//                     .flat_map(|elem| {
-//                         let n = elem.connectivity.len() as i32;
-//                         std::iter::once(n)
-//                             // Cast to i32 directly — no arithmetic.
-//                             // The value is already a signed 1-based
-//                             // face reference; no conversion needed.
-//                             .map(&v)
-//                     })
-//                     .collect()
-//             } else {
-//                 // Treat as NGON with 1-based node indices by default, but warn 
-//                 // since this is a common error case that leads to silent data 
-//                 // corruption.
-//                 eprintln!("Unrecognized poly cgns_code, treated as 1-based node indices: {cgns_code}");
-//                 block.iter(coords)
-//                     .flat_map(|elem| 
-//                         elem.connectivity
-//                             .iter()
-//                             .map(|&n| n + 1)
-//                     )
-//                     .collect()
-//             }
-//         }
-//     }
-// }
 
 // ── entry point ─────────────────────────────────────────────────────────────
 
