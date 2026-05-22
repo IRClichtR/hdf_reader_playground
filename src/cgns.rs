@@ -1,98 +1,70 @@
-use hdf5_metno::{File, Group, Dataset, types::{FixedAscii, FixedUnicode, VarLenUnicode, VarLenAscii}};
-use hdf5_metno::types::TypeDescriptor;
+// use hdf5_metno::{File, Group, Dataset, types::{FixedAscii, FixedUnicode, VarLenUnicode, VarLenAscii}};
+// use hdf5_metno::types::TypeDescriptor;
+// use std::path::Path;
+// use ndarray::{Array1, Array2, arr1, s, array};
+// use mefikit::mesh::{ElementType, ElementLike, UMesh, UMeshView, Dimension};
+// use std::io::{self, Write};
+// use std::collections::BTreeMap;
+use crate::{describe_dataset, find_first_child_with_label, read_coordinates, read_string_data};
+use hdf5_metno::{File, Group};
 use std::path::Path;
-use ndarray::{Array1, Array2, arr1, s, array};
-use mefikit::mesh::{ElementType, ElementLike, UMesh, UMeshView, Dimension};
-use std::io::{self, Write};
-use std::collections::BTreeMap;
+use mefikit::mesh::{ElementType, UMesh};
 
-pub enum CgnsHdfDtype {
-    I4, // -> i32
-    I8, // -> i64
-    R4, // -> f32
-    R8, // -> f64
-    X4, // -> [f32 ; 2]or Complex<f32>
-    X8, // -> [f64 ; 2] or Complex<f64>
-    C1, // -> String::from_utf8
-    MT, // -> No
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CgnsBaseDim {
+    pub cell_dim: usize,
+    pub phys_dim: usize,
 }
 
-// Return true if element describes a face-list section (NGON_n)
-// inline to speed up the check since we'll be doing it for every element
-#[inline]
-fn is_ngon(cgns_code: i32) -> bool {
-    cgns_code == 22
+impl TryFrom<&Group> for CgnsBaseDim {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(base: &Group) -> Result<Self, Self::Error> {
+        let data: Vec<i32> = base
+            .dataset(" data")?
+            .as_reader()
+            .read_dyn::<i32>()?
+            .into_raw_vec_and_offset()
+            .0;
+
+        if data.len() < 2 {
+            return Err("CGNSBase_t data must have at least 2 elements".into());
+        }
+
+        let base_data = Self {
+            cell_dim: data[0] as usize,
+            phys_dim: data[1] as usize,
+        };
+
+        base_data.validate()?;
+        Ok(base_data)
+    }
 }
 
-// Return true if element describes a cell-face section (NFACE_n)
-#[inline]
-fn is_nfaces(cgns_code: i32) -> bool {
-    cgns_code == 23
-}
-
-
-
-fn read_string_data(group: &Group) -> Result<String, Box<dyn std::error::Error>> {
-    let s: String = group
-        .dataset(" data")?
-        .as_reader()
-        .read_1d::<i8>()?
-        .iter()
-        .take_while(|&&b| b != 0)
-        .map(|&b| b as u8 as char)
-        .collect();
-    Ok(s.trim().to_string())
-}
-
-fn cgns_label(group: &Group) -> Result<String, Box<dyn std::error::Error>> {
-    let attr = group.attr(" label").or_else(|_| group.attr("label"))?;
-    let label: String = attr
-        .as_reader()
-        .read_scalar::<FixedAscii<64>>()?
-        .to_string();
-    Ok(label.trim().trim_matches('\0').to_string())
-}
-
-fn find_first_child_with_label(
-    group: &Group,
-    label: &str,
-) -> Result<Group, Box<dyn std::error::Error>> {
-    for name in group.member_names()? {
-        let Ok(child) = group.group(&name) else { continue };
-        let Ok(lbl) = cgns_label(&child) else { continue };
-        if lbl == label {
-            return Ok(child);
+impl CgnsBaseDim {
+    pub fn validate(&self) -> Result<(), Box<dyn std::error::Error>> {
+        match (self.cell_dim, self.phys_dim) {
+            (3, 3) | (2, 3) | (2, 2) | (1, 1) => Ok(()),
+            other  => Err(format!("Unsupported dimension combo {other:?}").into()),
         }
     }
-    Err(format!("no child with label '{label}' in '{}'", group.name()).into())
 }
 
-fn children_with_label(
-    group: &Group,
-    label: &str,
-) -> Result<Vec<Group>, Box<dyn std::error::Error>> {
-    let mut out = Vec::new();
-    for name in group.member_names()? {
-        let Ok(child) = group.group(&name) else { continue };
-        let Ok(lbl) = cgns_label(&child) else { continue };
-        if lbl == label {
-            out.push(child);
-        }
-    }
-    Ok(out)
+struct CgnsElementInfo {
+    element_type: ElementType,
+    nodes_per_cell: Option<usize>,  // None for poly
 }
 
-
-fn cgns_code_to_element_type(code: i32) -> Option<ElementType> {
+fn cgns_element_info(code: i32) -> Option<CgnsElementInfo> {
     match code {
-        2  => Some(ElementType::VERTEX),
-        3  => Some(ElementType::SEG2),
-        5  => Some(ElementType::TRI3),
-        7  => Some(ElementType::QUAD4),
-        10 => Some(ElementType::TET4),
-        17 => Some(ElementType::HEX8),
-        22 => Some(ElementType::PGON),
-        23 => Some(ElementType::PHED),
+        2  => Some(CgnsElementInfo { element_type: ElementType::VERTEX, nodes_per_cell: Some(1) }),
+        3  => Some(CgnsElementInfo { element_type: ElementType::SEG2,   nodes_per_cell: Some(2) }),
+        5  => Some(CgnsElementInfo { element_type: ElementType::TRI3,   nodes_per_cell: Some(3) }),
+        7  => Some(CgnsElementInfo { element_type: ElementType::QUAD4,  nodes_per_cell: Some(4) }),
+        10 => Some(CgnsElementInfo { element_type: ElementType::TET4,   nodes_per_cell: Some(4) }),
+        17 => Some(CgnsElementInfo { element_type: ElementType::HEX8,   nodes_per_cell: Some(8) }),
+        22 => Some(CgnsElementInfo { element_type: ElementType::PGON,   nodes_per_cell: None    }),
+        23 => Some(CgnsElementInfo { element_type: ElementType::PHED,   nodes_per_cell: None    }),
         other => {
             eprintln!("warning: unsupported CGNS element type {other}, section skipped");
             None
@@ -100,34 +72,41 @@ fn cgns_code_to_element_type(code: i32) -> Option<ElementType> {
     }
 }
 
-fn element_type_to_cgns(et: ElementType) -> i32 {
-    match et {
-        ElementType::VERTEX => 2,
-        ElementType::SEG2   => 3,
-        ElementType::TRI3   => 5,
-        ElementType::PGON   => 22,
-        ElementType::QUAD4  => 7,
-        ElementType::TET4   => 10,
-        ElementType::HEX8   => 17,
-        ElementType::PHED   => 23,
-        other => panic!("unsupported ElementType {other:?}"),
-    }
-}
+// ElementStartOffset = [0, 4, 9, 13, ...]
+//                       ↑  ↑  ↑   ↑
+//                       |  |  |   cell 3 starts at index 13
+//                       |  |  cell 2 starts at index 9
+//                       |  cell 1 starts at index 4
+//                       cell 0 starts at index 0
 
-fn nodes_per_cgns_code(code: i32) -> Option<usize> {
-    match code {
-        2  => Some(1),
-        3  => Some(2),
-        5  => Some(3),
-        7  => Some(4),
-        10 => Some(4),
-        17 => Some(8),
-        _  => None, // poly types have variable stride — handled separately
-    }
+// ElementConnectivity = [n0 n1 n2 n3 | n0 n1 n2 n3 n4 | n0 n1 n2 n3 | ...]
+//                        ←— cell 0 —→  ←——— cell 1 ———→  ←— cell 2 —→
+
+fn read_elements() -> {
+    
 }
 
 pub fn read(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let f = File::open(path)?;
+    println!("<------> DATASET DESCRIPTION <------>");
+    describe_dataset::describe_dataset(path);
+    let base = find_first_child_with_label(&f.as_group()?, "CGNSBase_t")?;
     
+    let cgns_dim = CgnsBaseDim::try_from(&base)?;
+    
+    println!("<------> BASE INFOS <------>");
+    println!("Mesh Dimensions: {cgns_dim:?}");
+    let zone = find_first_child_with_label(&base, "Zone_t")?;
+
+    let z_type = read_string_data(&find_first_child_with_label(&zone, "ZoneType_t")?)?;
+    if z_type != "Unstructured" {
+        return Err(format!("unsupported zone type: {z_type}").into());
+    }
+
+   let coords = read_coordinates(&zone, cgns_dim.phys_dim)?;
+   println!("<------> GRID COORDINATES <------>");
+   println!("coords: {coords}");
+   // let mut mesh = UMesh::new(coords);
+   
     Ok(())
 }

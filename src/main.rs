@@ -51,6 +51,32 @@ pub fn read_type_attr(group: &hdf5_metno::Group) -> Result<String, Box<dyn std::
     }
 }
 
+pub fn read_type_attr2(group: &hdf5_metno::Group, name: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let attr = group.attr(name)?;
+    let dtype = attr.dtype()?;
+    let desc = dtype.to_descriptor()?;
+    dbg!(&desc);  // let's see what we get
+    match desc {
+        TypeDescriptor::VarLenUnicode  => {
+            let s: VarLenUnicode = attr.read_scalar()?;
+            Ok(s.to_string())
+        },
+        TypeDescriptor::VarLenAscii => {
+            let s: VarLenAscii = attr.read_scalar()?;
+            Ok(s.to_string())
+        },
+        TypeDescriptor::FixedAscii(_) => {
+            let s: FixedAscii<64> = attr.read_scalar()?;
+            Ok(s.as_str().trim_end_matches('\0').to_string())
+        }
+        TypeDescriptor::FixedUnicode(_) => {
+            let s: FixedUnicode<64> = attr.read_scalar()?;
+            Ok(s.as_str().trim_end_matches('\0').to_string())
+        }
+        other => Err(format!("Unexpected string type: {other:?}").into()),
+    }
+}
+
 fn handle_unstructured(block: &hdf5_metno::Group) -> Result<UMesh, Box<dyn std::error::Error>> {
     // read data from file
     let points: Array2<f64> = block.dataset("Points")?.read()?;
@@ -343,11 +369,17 @@ fn read_coordinates(
 
     let n = columns[0].len();
     let mut coords = ndarray::Array2::<f64>::zeros((n, phys_dim));
-    for (col, arr) in columns.iter().enumerate() {
-        for i in 0..n {
-            coords[[i, col]] = arr[i];
-        }
+    for (col_idx, col_data) in columns.iter().enumerate() {
+        coords.column_mut(col_idx)
+            .iter_mut()
+            .zip(col_data)
+            .for_each(|(dst, &src)| *dst = src);
     }
+    let z_col = coords.column(2);
+    println!("--------------------DEBUG-------------------");
+    println!("Z min: {}", z_col.iter().cloned().fold(f64::INFINITY, f64::min));
+    println!("Z max: {}", z_col.iter().cloned().fold(f64::NEG_INFINITY, f64::max));
+    
     Ok(coords.into_shared())
 }
 
@@ -988,7 +1020,12 @@ fn traverse_zonebc(zonebc: &Group) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// println!("Start");
+// let files = vec![
+//     "examples/cgns/yf17_hdf5.cgns",
+//     "examples/cgns/particles_example.cgns",
+
 fn main() {
-    describe_dataset();
+    cgns::read(&Path::new("examples/cgns/yf17_hdf5.cgns")).unwrap();
     // write_roundtrip_test().unwrap();
 }
