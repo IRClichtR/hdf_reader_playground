@@ -82,8 +82,12 @@ fn cgns_element_info(code: i32) -> Option<CgnsElementInfo> {
 // ElementConnectivity = [n0 n1 n2 n3 | n0 n1 n2 n3 n4 | n0 n1 n2 n3 | ...]
 //                        ←— cell 0 —→  ←——— cell 1 ———→  ←— cell 2 —→
 
-fn read_elements() -> {
-    
+// 1. read element type code from " data"
+// 2. if PHED → find companion PGON section, two-level deref
+// 3. if PGON → single level, use ElementStartOffset
+// 4. else    → check nodes_per_cgns_code → fixed stride, no offsets
+fn read_elements(mesh: &mut UMesh) -> Result<(), Box<dyn std::error::Error> {
+    // homogeneous or heterogeous
 }
 
 pub fn read(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -106,7 +110,10 @@ pub fn read(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
    let coords = read_coordinates(&zone, cgns_dim.phys_dim)?;
    println!("<------> GRID COORDINATES <------>");
    println!("coords: {coords}");
-   // let mut mesh = UMesh::new(coords);
+   let mut mesh = UMesh::new(coords);
+
+   read_elements(&mut mesh)?;
+   
    
     Ok(())
 }
