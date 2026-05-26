@@ -346,6 +346,7 @@ dependencies = [
  "arrayvec",
  "hdf5-metno",
  "hdf5-metno-sys",
+ "indexmap",
  "itertools",
  "mefikit",
  "ndarray",

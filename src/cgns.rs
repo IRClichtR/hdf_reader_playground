@@ -9,6 +9,7 @@ use crate::{children_with_label, describe_dataset, find_first_child_with_label, 
 use hdf5_metno::{File, Group};
 use std::path::Path;
 use mefikit::mesh::{ElementType, UMesh};
+use indexmap::IndexSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CgnsBaseDim {
@@ -116,16 +117,15 @@ fn read_element_offsets(element: &Group) -> Result<Option<Vec<i64>>, Box<dyn std
     Ok(Some(values))
 }
 
-// ElementStartOffset = [0, 4, 9, 13, ...]
-//                       ↑  ↑  ↑   ↑
-//                       |  |  |   cell 3 starts at index 13
-//                       |  |  cell 2 starts at index 9
-//                       |  cell 1 starts at index 4
-//                       cell 0 starts at index 0
+// // ElementStartOffset = [0, 4, 9, 13, ...]
+// //                       ↑  ↑  ↑   ↑
+// //                       |  |  |   cell 3 starts at index 13
+// //                       |  |  cell 2 starts at index 9
+// //                       |  cell 1 starts at index 4
+// //                       cell 0 starts at index 0
 
-// ElementConnectivity = [n0 n1 n2 n3 | n0 n1 n2 n3 n4 | n0 n1 n2 n3 | ...]
-//                        ←— cell 0 —→  ←——— cell 1 ———→  ←— cell 2 —→
-
+// // ElementConnectivity = [n0 n1 n2 n3 | n0 n1 n2 n3 n4 | n0 n1 n2 n3 | ...]
+// //                        ←— cell 0 —→  ←——— cell 1 ———→  ←— cell 2 —→
 fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::error::Error>> {
     let el_group = children_with_label(zone, "Elements_t")?;
     
@@ -151,9 +151,10 @@ fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::erro
                 let n_cells = (range[1] - range[0] + 1) as usize;
                 let conn_usize: Vec<usize> = conn.iter().map(|&v| v as usize).collect();
                 
-                for i in 0..n_cells {
+                for i in 0..n_cells { 
                     let start = offsets[i] as usize;
                     let end = offsets[i + 1] as usize;
+                    println!("n_cell value: {i} --- Start: {start} | end: {end}");
                     mesh.add_element(ElementType::PGON, &conn_usize[start..end], None, None);
                 }
             }
@@ -182,8 +183,8 @@ fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::erro
 
 pub fn read(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let f = File::open(path)?;
-    println!("<------> DATASET DESCRIPTION <------>");
-    describe_dataset::describe_dataset(path);
+    // println!("<------> DATASET DESCRIPTION <------>");
+    // describe_dataset::describe_dataset(path);
     let base = find_first_child_with_label(&f.as_group()?, "CGNSBase_t")?;
     
     let cgns_dim = CgnsBaseDim::try_from(&base)?;
