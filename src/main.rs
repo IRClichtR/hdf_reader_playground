@@ -3,7 +3,7 @@ use hdf5_metno::types::TypeDescriptor;
 use std::path::Path;
 use ndarray::{Array1, Array2, arr1, s, array};
 use mefikit::mesh::{ElementType, ElementLike, UMesh, UMeshView, Dimension};
-use std::io::{self, Write};
+// use std::io::{self, Write};
 use std::collections::BTreeMap;
 
 use crate::describe_dataset::describe_dataset;
@@ -1026,6 +1026,6 @@ fn traverse_zonebc(zonebc: &Group) -> Result<(), Box<dyn std::error::Error>> {
 //     "examples/cgns/particles_example.cgns",
 
 fn main() {
-    cgns::read(&Path::new("examples/cgns/yf17_hdf5.cgns")).unwrap();
+    cgns::read(&Path::new("examples/cgns/particles_example.cgns")).unwrap();
     // write_roundtrip_test().unwrap();
 }
