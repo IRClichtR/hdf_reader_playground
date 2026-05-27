@@ -109,6 +109,12 @@ fn read_element_connectivity(element: &Group) -> Result<Vec<i64>, Box<dyn std::e
     Ok(values.iter().map(|&i| i - 1).collect())
 }
 
+fn read_phed_connectivity(element: &Group) -> Result<Vec<i64>, Box<dyn std::error::Error>> {
+    let conn_group = element.group("ElementConnectivity")?;
+    // PHED can contain negative values so substract here is irrelevant
+    read_index_array(&conn_group)
+}
+
 fn read_element_offsets(element: &Group) -> Result<Option<Vec<i64>>, Box<dyn std::error::Error>> {
     let Ok(offset_group) = element.group("ElementStartOffset") else {
         return Ok(None);
@@ -137,24 +143,41 @@ fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::erro
     if let Some(info) = type_info {
         match info.element_type {
             ElementType::PHED => {
-                println!("This is a PHED");
                 // 2. if PHED → find companion PGON section
+                println!("This is a PHED");
+                let range = read_element_range(&element)?;
+                println!("PHED range: {range:?}");
+                let conn = read_phed_connectivity(&element)?;
+                // println!("phed_connectivity: {conn:?}");
+                let start_offset = read_element_offsets(&element)?;
+                println!("start_offset = {start_offset:?}");
+            
+
+                // for faces in &conn
+
+                
+                
+                
             }
             ElementType::PGON => {
                 // 3. if PGON → single level, use ElementStartOffset
                 println!("This is a PGON");
                 let range = read_element_range(&element)?;
+                println!("PGON range: {range:?}");
                 let conn = read_element_connectivity(&element)?;
                 let offsets = read_element_offsets(&element)?
                     .ok_or("PGON section missing ElementStartOffset")?;
                 
                 let n_cells = (range[1] - range[0] + 1) as usize;
                 let conn_usize: Vec<usize> = conn.iter().map(|&v| v as usize).collect();
+                let conn_i64: Vec<i64> = conn.to_vec();
+                // println!("conn i64: {conn_i64:?}");
+                // println!("raw connectivity without usize: {conn_usize:?}");
                 
                 for i in 0..n_cells { 
                     let start = offsets[i] as usize;
                     let end = offsets[i + 1] as usize;
-                    println!("n_cell value: {i} --- Start: {start} | end: {end}");
+                    // println!("n_cell value: {i} --- Start: {start} | end: {end} | faces number: {}", end - start);
                     mesh.add_element(ElementType::PGON, &conn_usize[start..end], None, None);
                 }
             }
@@ -183,7 +206,7 @@ fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::erro
 
 pub fn read(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let f = File::open(path)?;
-    // println!("<------> DATASET DESCRIPTION <------>");
+    println!("<------> DATASET DESCRIPTION <------>");
     // describe_dataset::describe_dataset(path);
     let base = find_first_child_with_label(&f.as_group()?, "CGNSBase_t")?;
     
