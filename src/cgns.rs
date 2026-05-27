@@ -5,7 +5,7 @@
 // use mefikit::mesh::{ElementType, ElementLike, UMesh, UMeshView, Dimension};
 // use std::io::{self, Write};
 // use std::collections::BTreeMap;
-use crate::{children_with_label, describe_dataset, find_first_child_with_label, read_coordinates, read_string_data, read_type_attr2};
+use crate::{children_with_label, describe_dataset, find_first_child_with_label, read_coordinates, read_string_data, read_type_attr2, traverse_zonebc};
 use hdf5_metno::{File, Group};
 use std::path::Path;
 use mefikit::mesh::{ElementType, UMesh};
@@ -130,96 +130,9 @@ fn read_element_offsets(element: &Group) -> Result<Option<Vec<i64>>, Box<dyn std
 
 // // ElementConnectivity = [n0 n1 n2 n3 | n0 n1 n2 n3 n4 | n0 n1 n2 n3 | ...]
 // //                        ←— cell 0 —→  ←——— cell 1 ———→  ←— cell 2 —→
-// fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::error::Error>> {
-//     let el_group = children_with_label(zone, "Elements_t")?;
-    
-//     println!("Elements_t zones: {}", el_group.len());
-//     for element in el_group {
-//     // 1. read element type code from " data"
-//     let type_info = cgns_element_info(read_element_type(&element)?);
-    
-//     if let Some(info) = type_info {
-//         match info.element_type {
-//             ElementType::PHED => {
-//                 // 2. if PHED → find companion PGON section
-//                 println!("This is a PHED");
-//                 let range = read_element_range(&element)?;
-//                 println!("PHED range: {range:?}");
-//                 let conn = read_phed_connectivity(&element)?;
-//                 // println!("phed_connectivity: {conn:?}");
-//                 let start_offset = read_element_offsets(&element)?
-//                     .ok_or_else(|| "no offsets".to_string())?;
-//                 println!("start_offset = {start_offset:?}");
-
-//                 let n_cells = start_offset.len() - 1;
-
-//                 for i in 0..n_cells {
-//                    let start = start_offset[i] as usize; 
-//                    let end = start_offset[i + 1] as usize;
-//                   println!("n_cell value: {i} | start: {start} | end: {end}"); 
-//                   for &face_ref in &conn[start..end] {
-//                       let rev = face_ref < 0; // keep track of rev faces
-//                       let face_index = (face_ref.unsigned_abs() as usize) - 1;
-//                       println!("face_index: {face_index}");
-//                   }
-//                 }
-            
-
-//                 // for faces in &conn
-
-                
-                
-                
-//             }
-//             ElementType::PGON => {
-//                 // 3. if PGON → single level, use ElementStartOffset
-//                 println!("This is a PGON");
-//                 let range = read_element_range(&element)?;
-//                 println!("PGON range: {range:?}");
-//                 let conn = read_element_connectivity(&element)?;
-//                 let offsets = read_element_offsets(&element)?
-//                     .ok_or("PGON section missing ElementStartOffset")?;
-                
-//                 let n_cells = (range[1] - range[0] + 1) as usize;
-//                 let conn_usize: Vec<usize> = conn.iter().map(|&v| v as usize).collect();
-//                 let conn_i64: Vec<i64> = conn.to_vec();
-//                 // println!("conn i64: {conn_i64:?}");
-//                 // println!("raw connectivity without usize: {conn_usize:?}");
-                
-//                 for i in 0..n_cells { 
-//                     let start = offsets[i] as usize;
-//                     let end = offsets[i + 1] as usize;
-//                     // println!("n_cell value: {i} --- Start: {start} | end: {end} | faces number: {}", end - start);
-//                     mesh.add_element(ElementType::PGON, &conn_usize[start..end], None, None);
-//                 }
-//             }
-//             other => {
-//                 println!("Other type: {other:?}");
-//                 // 4. else    → check nodes_per_cgns_code → fixed stride, no offsets
-//                 let range = read_element_range(&element)?;
-//                 let conn = read_element_connectivity(&element)?;
-//                 // No offsets because fixed stride
-//                 let n_cells = (range[1] - range[0] + 1) as usize;
-//                 let nodes_per_cell = info.nodes_per_cell.unwrap();
-                
-//                 for i in 0..n_cells {
-//                     let start = i * nodes_per_cell;
-//                     let end = start + nodes_per_cell;
-//                     let cell: Vec<usize> = conn[start..end].iter().map(|&v| v as usize).collect();
-//                     mesh.add_element(info.element_type, &cell, None, None);
-//                 }
-//             }
-//         }
-//     } 
-//     }
-    
-//     Ok(()) 
-// }
-// 
-
 fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::error::Error>> {
     let el_group = children_with_label(zone, "Elements_t")?;
-    println!("Elements_t zones: {}", el_group.len());
+    // println!("Elements_t zones: {}", el_group.len());
 
     // --- first pass: collect PGON and PHED raw data ---
     let mut pgon_offsets: Option<Vec<i64>> = None;
@@ -235,7 +148,6 @@ fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::erro
                     let conn    = read_element_connectivity(element)?;
                     let offsets = read_element_offsets(element)?
                         .ok_or("PGON missing ElementStartOffset")?;
-                    // add to mesh as before
                     let range = read_element_range(element)?;
                     let n_cells = (range[1] - range[0] + 1) as usize;
                     for i in 0..n_cells {
@@ -276,12 +188,12 @@ fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::erro
     {
         
         let n_cells = p_off.len() - 1;
-        println!("2nd pass n_cells: {n_cells}");
+        // println!("2nd pass n_cells: {n_cells}");
         for i in 0..n_cells {
             let start = p_off[i] as usize;
             let end   = p_off[i + 1] as usize;
 
-            println!("n_cell value = {i} | start = {start} | end = {end}");
+            // println!("n_cell value = {i} | start = {start} | end = {end}");
 
             let mut cell_nodes: Vec<usize> = Vec::new();
 
@@ -291,11 +203,11 @@ fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::erro
 
                 let node_start = f_off[face_index] as usize;
                 let node_end   = f_off[face_index + 1] as usize;
-                println!("face_ref value = {face_ref} | node_start = {node_start} | node_end = {node_end}");
+                // println!("face_ref value = {face_ref} | node_start = {node_start} | node_end = {node_end}");
 
                 for &node_id in &f_conn[node_start..node_end] {
                     let coord_index = (node_id as usize) - 1;
-                    println!("coord_index = {coord_index}");
+                    // println!("coord_index = {coord_index}");
                     cell_nodes.push(coord_index);
                 }
             }
@@ -307,12 +219,31 @@ fn read_elements(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
+// Handle FamilyBC_t or FamilyName_t group or BC_t directly into Zone_t
+// the difference is on the family name definition
+fn family_name() -> Result<String, Box<dyn std::error::Error>> {
+    todo!();
+}
 
-pub fn read(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn read_bcs(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::error::Error>> {
+    let names = zone.member_names()?;
+    println!("{names:?}");
+    let bc = zone.group("ZoneBC")?;
+    traverse_zonebc(&bc)?;
+
+    // Handle family name get
+     
+    Ok(())
+}
+
+pub fn read(path: &Path) -> Result<UMesh, Box<dyn std::error::Error>> {
     let f = File::open(path)?;
     println!("<------> DATASET DESCRIPTION <------>");
     // describe_dataset::describe_dataset(path);
     let base = find_first_child_with_label(&f.as_group()?, "CGNSBase_t")?;
+    // let names = base.member_names()?;
+    // println!("{names:?}");
+    
     
     let cgns_dim = CgnsBaseDim::try_from(&base)?;
     
@@ -327,11 +258,10 @@ pub fn read(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
    let coords = read_coordinates(&zone, cgns_dim.phys_dim)?;
    println!("<------> GRID COORDINATES <------>");
-   println!("coords: {coords}");
+   // println!("coords: {coords}");
    let mut mesh = UMesh::new(coords);
 
    read_elements(&mut mesh, &zone)?;
-   
-   
-    Ok(())
+   read_bcs(&mut mesh, &zone)?;
+    Ok(mesh)
 }

@@ -383,220 +383,220 @@ fn read_coordinates(
     Ok(coords.into_shared())
 }
 
-// first pass: collect BC ranges/pointlists → map global_cgns_idx → family_id
-fn collect_bc_families(
-    zone: &Group,
-) -> Result<std::collections::HashMap<i64, usize>, Box<dyn std::error::Error>> {
-    let mut map = std::collections::HashMap::new();
+// // first pass: collect BC ranges/pointlists → map global_cgns_idx → family_id
+// fn collect_bc_families(
+//     zone: &Group,
+// ) -> Result<std::collections::HashMap<i64, usize>, Box<dyn std::error::Error>> {
+//     let mut map = std::collections::HashMap::new();
 
-    let Ok(zonebc) = find_first_child_with_label(zone, "ZoneBC_t") else {
-        return Ok(map);
-    };
+//     let Ok(zonebc) = find_first_child_with_label(zone, "ZoneBC_t") else {
+//         return Ok(map);
+//     };
 
-    for (family_id, bc) in children_with_label(&zonebc, "BC_t")?
-        .into_iter()
-        .enumerate()
-        .map(|(i, bc)| (i + 1, bc))
-    {
-        let face_ids: Vec<i64> = if let Ok(pl) = bc.group("PointList") {
-            pl.dataset(" data")?
-                .as_reader()
-                .read_dyn::<i64>()?
-                .into_raw_vec_and_offset().0
-        } else if let Ok(pr) = bc.group("PointRange") {
-            let flat = pr.dataset(" data")?
-                .as_reader()
-                .read_dyn::<i64>()?
-                .into_raw_vec_and_offset().0;
-            (flat[0]..=flat[1]).collect()
-        } else {
-            continue;
-        };
+//     for (family_id, bc) in children_with_label(&zonebc, "BC_t")?
+//         .into_iter()
+//         .enumerate()
+//         .map(|(i, bc)| (i + 1, bc))
+//     {
+//         let face_ids: Vec<i64> = if let Ok(pl) = bc.group("PointList") {
+//             pl.dataset(" data")?
+//                 .as_reader()
+//                 .read_dyn::<i64>()?
+//                 .into_raw_vec_and_offset().0
+//         } else if let Ok(pr) = bc.group("PointRange") {
+//             let flat = pr.dataset(" data")?
+//                 .as_reader()
+//                 .read_dyn::<i64>()?
+//                 .into_raw_vec_and_offset().0;
+//             (flat[0]..=flat[1]).collect()
+//         } else {
+//             continue;
+//         };
 
-        for idx in face_ids {
-            map.insert(idx, family_id);
-        }
-    }
+//         for idx in face_ids {
+//             map.insert(idx, family_id);
+//         }
+//     }
 
-    Ok(map)
-}
+//     Ok(map)
+// }
 
-fn read_elements(
-    zone: &Group,
-    mesh: &mut UMesh,
-    bc_families: &std::collections::HashMap<i64, usize>,
-) -> Result<(), Box<dyn std::error::Error>> {
+// fn read_elements(
+//     zone: &Group,
+//     mesh: &mut UMesh,
+//     bc_families: &std::collections::HashMap<i64, usize>,
+// ) -> Result<(), Box<dyn std::error::Error>> {
 
-    // Collect all element sections "Elements_t" and sort by starting global 
-    // index (from ElementRange) to ensure we assign family tags correctly
-    let mut sections = children_with_label(zone, "Elements_t")?;
+//     // Collect all element sections "Elements_t" and sort by starting global 
+//     // index (from ElementRange) to ensure we assign family tags correctly
+//     let mut sections = children_with_label(zone, "Elements_t")?;
 
-    sections.sort_by_key(|s| {
-        find_first_child_with_label(s, "IndexRange_t")
-            .and_then(|r| r.dataset(" data")
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>))
-            .and_then(|d| d.as_reader().read_dyn::<i64>()
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>))
-            .map(|a| a.into_raw_vec_and_offset().0[0])
-            .unwrap_or(i64::MAX)
-    });
+//     sections.sort_by_key(|s| {
+//         find_first_child_with_label(s, "IndexRange_t")
+//             .and_then(|r| r.dataset(" data")
+//                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>))
+//             .and_then(|d| d.as_reader().read_dyn::<i64>()
+//                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>))
+//             .map(|a| a.into_raw_vec_and_offset().0[0])
+//             .unwrap_or(i64::MAX)
+//     });
 
-    // We run a global counter of CGNS element indices (1-based) as we read 
-    // through the sections. 
-    let mut global_idx = 1_i64; // 1-based running counter
+//     // We run a global counter of CGNS element indices (1-based) as we read 
+//     // through the sections. 
+//     let mut global_idx = 1_i64; // 1-based running counter
 
-    // Iterate through sections in global index order, read connectivity, 
-    // add elements to mesh with family tags from bc_families map.
-    for section in &sections {
-        // read cgns_code from section's " data" dataset
-        let meta: Vec<i32> = section
-            .dataset(" data")?
-            .as_reader()
-            .read_dyn::<i32>()?
-            .into_raw_vec_and_offset().0;
+//     // Iterate through sections in global index order, read connectivity, 
+//     // add elements to mesh with family tags from bc_families map.
+//     for section in &sections {
+//         // read cgns_code from section's " data" dataset
+//         let meta: Vec<i32> = section
+//             .dataset(" data")?
+//             .as_reader()
+//             .read_dyn::<i32>()?
+//             .into_raw_vec_and_offset().0;
         
-        // meta[0] is cgns_code, 
-        // meta[1] is parentFlag we don't use it
-        let cgns_code = meta[0];
+//         // meta[0] is cgns_code, 
+//         // meta[1] is parentFlag we don't use it
+//         let cgns_code = meta[0];
 
-        // map cgns_code to ElementType, skip if unsupported
-        // keep global_idx accurate by counting skipped elements based on 
-        // ElementRange
-        let Some(elem_type) = cgns_code_to_element_type(cgns_code) else {
-            // count skipped elements to keep global_idx accurate
-            let range: Vec<i64> = find_first_child_with_label(section, "IndexRange_t")?
-                .dataset(" data")?
-                .as_reader()
-                .read_dyn::<i64>()?
-                .into_raw_vec_and_offset().0;
-            global_idx += range[1] - range[0] + 1;
-            eprintln!("warning: skipping unsupported CGNS type {cgns_code}");
-            continue;
-        };
+//         // map cgns_code to ElementType, skip if unsupported
+//         // keep global_idx accurate by counting skipped elements based on 
+//         // ElementRange
+//         let Some(elem_type) = cgns_code_to_element_type(cgns_code) else {
+//             // count skipped elements to keep global_idx accurate
+//             let range: Vec<i64> = find_first_child_with_label(section, "IndexRange_t")?
+//                 .dataset(" data")?
+//                 .as_reader()
+//                 .read_dyn::<i64>()?
+//                 .into_raw_vec_and_offset().0;
+//             global_idx += range[1] - range[0] + 1;
+//             eprintln!("warning: skipping unsupported CGNS type {cgns_code}");
+//             continue;
+//         };
 
-        // read connectivity as flat list of node indices (1-based)
-        let conn: Vec<i64> = section
-            .group("ElementConnectivity")?
-            .dataset(" data")?
-            .as_reader()
-            .read_dyn::<i64>()?
-            .into_raw_vec_and_offset().0;
+//         // read connectivity as flat list of node indices (1-based)
+//         let conn: Vec<i64> = section
+//             .group("ElementConnectivity")?
+//             .dataset(" data")?
+//             .as_reader()
+//             .read_dyn::<i64>()?
+//             .into_raw_vec_and_offset().0;
 
-        // dispatch based on section type
-        match nodes_per_cgns_code(cgns_code) {
-            Some(stride) => {
-                for chunk in conn.chunks(stride) {
-                    let family = bc_families.get(&global_idx).copied();
-                    let nodes: Vec<usize> = chunk
-                        .iter()
-                        .map(|&n| (n - 1) as usize)
-                        .collect();
-                    mesh.add_element(elem_type, &nodes, family, None);
-                    global_idx += 1;
-                }
-            }
+//         // dispatch based on section type
+//         match nodes_per_cgns_code(cgns_code) {
+//             Some(stride) => {
+//                 for chunk in conn.chunks(stride) {
+//                     let family = bc_families.get(&global_idx).copied();
+//                     let nodes: Vec<usize> = chunk
+//                         .iter()
+//                         .map(|&n| (n - 1) as usize)
+//                         .collect();
+//                     mesh.add_element(elem_type, &nodes, family, None);
+//                     global_idx += 1;
+//                 }
+//             }
 
-            // Format:  [n_entries, v0, …, v_{n-1},  n_entries, …]
-            //
-            // CRITICAL: the index-space of the values is TYPE-DEPENDENT:
-            //
-            //   NGON_n  (code 22) → values are 1-based NODE indices.
-            //                       Decode: (v - 1) as usize.
-            //
-            //   NFACE_n (code 23) → values are SIGNED 1-based FACE indices.
-            //                       The sign encodes face orientation; it must
-            //                       NOT be stripped by subtraction before the
-            //                       cast — that would wrap negatives to huge
-            //                       usize values and trigger a false bounds
-            //                       failure.  Use unsigned_abs() - 1 instead.
-            None => {
-                let mut i = 0;
-                while i < conn.len() {
-                    dbg!(i);
-                    // Read len prefix for element
-                    let n_entries = conn[i] as usize;
-                    dbg!(n_entries);
-                    i += 1;
+//             // Format:  [n_entries, v0, …, v_{n-1},  n_entries, …]
+//             //
+//             // CRITICAL: the index-space of the values is TYPE-DEPENDENT:
+//             //
+//             //   NGON_n  (code 22) → values are 1-based NODE indices.
+//             //                       Decode: (v - 1) as usize.
+//             //
+//             //   NFACE_n (code 23) → values are SIGNED 1-based FACE indices.
+//             //                       The sign encodes face orientation; it must
+//             //                       NOT be stripped by subtraction before the
+//             //                       cast — that would wrap negatives to huge
+//             //                       usize values and trigger a false bounds
+//             //                       failure.  Use unsigned_abs() - 1 instead.
+//             None => {
+//                 let mut i = 0;
+//                 while i < conn.len() {
+//                     dbg!(i);
+//                     // Read len prefix for element
+//                     let n_entries = conn[i] as usize;
+//                     dbg!(n_entries);
+//                     i += 1;
 
-                    // Guard against malformed files with incorrect 
-                    // connectivity length
-                    if i + n_entries > conn.len() {
-                        return Err(format!(
-                            "cgns_io: malformed poly connectivity in section(cgns_code={cgns_code}):  claimed {n_entries} entries at offset {} but buffer length is {}",
-                            i, conn.len()
-                        ).into());
-                    }
+//                     // Guard against malformed files with incorrect 
+//                     // connectivity length
+//                     if i + n_entries > conn.len() {
+//                         return Err(format!(
+//                             "cgns_io: malformed poly connectivity in section(cgns_code={cgns_code}):  claimed {n_entries} entries at offset {} but buffer length is {}",
+//                             i, conn.len()
+//                         ).into());
+//                     }
 
-                    let family = bc_families.get(&global_idx).copied();
-                    let slice = &conn[i..i + n_entries];
+//                     let family = bc_families.get(&global_idx).copied();
+//                     let slice = &conn[i..i + n_entries];
 
-                    let entries: Vec<usize> = if is_ngon(cgns_code) {
-                        slice.iter()
-                            .map(|&n| (n - 1) as usize)
-                            .collect()
-                    } else if is_nfaces(cgns_code) {
-                        slice.iter()
-                            .map(|&n| n.unsigned_abs() as usize - 1)
-                            .collect()
-                    } else {
-                        eprintln!("Unrecognized poly cgns_code, treated as 1-based node indices: {cgns_code}");
-                        slice.iter()
-                            .map(|&n| (n - 1) as usize)
-                            .collect()
-                    };
+//                     let entries: Vec<usize> = if is_ngon(cgns_code) {
+//                         slice.iter()
+//                             .map(|&n| (n - 1) as usize)
+//                             .collect()
+//                     } else if is_nfaces(cgns_code) {
+//                         slice.iter()
+//                             .map(|&n| n.unsigned_abs() as usize - 1)
+//                             .collect()
+//                     } else {
+//                         eprintln!("Unrecognized poly cgns_code, treated as 1-based node indices: {cgns_code}");
+//                         slice.iter()
+//                             .map(|&n| (n - 1) as usize)
+//                             .collect()
+//                     };
                     
-                    mesh.add_element(elem_type, &entries, family, None);
-                    i += n_entries;
-                    global_idx += 1;
-                }
-            }
-        }
-    }
+//                     mesh.add_element(elem_type, &entries, family, None);
+//                     i += n_entries;
+//                     global_idx += 1;
+//                 }
+//             }
+//         }
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 // ── entry point ───────────────────────────────────────────────────────────────
 
-pub fn read_cgns(path: &Path) -> Result<UMesh, Box<dyn std::error::Error>> {
-    let file = File::open(path)?;
+// pub fn read_cgns(path: &Path) -> Result<UMesh, Box<dyn std::error::Error>> {
+//     let file = File::open(path)?;
 
-    // base
-    dbg!("Read base");
-    let base = find_first_child_with_label(&file.as_group()?, "CGNSBase_t")?;
-    let base_data: Vec<i32> = base
-        .dataset(" data")?
-        .as_reader()
-        .read_dyn::<i32>()?
-        .into_raw_vec_and_offset().0;
-    let phys_dim = base_data[1] as usize;
+//     // base
+//     dbg!("Read base");
+//     let base = find_first_child_with_label(&file.as_group()?, "CGNSBase_t")?;
+//     let base_data: Vec<i32> = base
+//         .dataset(" data")?
+//         .as_reader()
+//         .read_dyn::<i32>()?
+//         .into_raw_vec_and_offset().0;
+//     let phys_dim = base_data[1] as usize;
 
-    // zone
-    dbg!("Read zone");
-    let zone = find_first_child_with_label(&base, "Zone_t")?;
+//     // zone
+//     dbg!("Read zone");
+//     let zone = find_first_child_with_label(&base, "Zone_t")?;
 
-    // zone type check
-    dbg!("zone type check");
-    let z_type = read_string_data(&find_first_child_with_label(&zone, "ZoneType_t")?)?;
-    if z_type != "Unstructured" {
-        return Err(format!("unsupported zone type: {z_type}").into());
-    }
+//     // zone type check
+//     dbg!("zone type check");
+//     let z_type = read_string_data(&find_first_child_with_label(&zone, "ZoneType_t")?)?;
+//     if z_type != "Unstructured" {
+//         return Err(format!("unsupported zone type: {z_type}").into());
+//     }
 
-    // coordinates
-    dbg!("read coords");
-    let coords = read_coordinates(&zone, phys_dim)?;
-    let mut mesh = UMesh::new(coords);
+//     // coordinates
+//     dbg!("read coords");
+//     let coords = read_coordinates(&zone, phys_dim)?;
+//     let mut mesh = UMesh::new(coords);
 
-    // collect BC family assignments before adding elements
-    dbg!("collect BC families");
-    let bc_families = collect_bc_families(&zone)?;
+//     // collect BC family assignments before adding elements
+//     dbg!("collect BC families");
+//     let bc_families = collect_bc_families(&zone)?;
 
-    // add elements with family tags already resolved
-    dbg!("read elements with family tags");
-    read_elements(&zone, &mut mesh, &bc_families)?;
+//     // add elements with family tags already resolved
+//     dbg!("read elements with family tags");
+//     read_elements(&zone, &mut mesh, &bc_families)?;
 
-    Ok(mesh)
-}
+//     Ok(mesh)
+// }
 
 
 // ── write primitives ──────────────────────────────────────────────────────────
@@ -938,7 +938,7 @@ pub fn write_cgns(path: &Path, mesh: UMeshView) -> Result<(), Box<dyn std::error
 }
 
 pub fn write_roundtrip_test() -> Result<(), Box<dyn std::error::Error>> {
-    let mesh = read_cgns(Path::new("examples/cgns/particles_example.cgns"))?;
+    let mesh = cgns::read(Path::new("examples/cgns/particles_example.cgns"))?;
     write_cgns(Path::new("examples/cgns/roundtrip_particles8.cgns"), mesh.view())?;
     println!("wrote roundtrip_particles8.cgns");
     Ok(())
@@ -993,7 +993,7 @@ fn traverse_elements(name: &str, elem_group: &Group) -> Result<(), Box<dyn std::
     for child_name in elem_group.member_names()? {
         let Ok(child) = elem_group.group(&child_name) else { continue };
         let Ok(lbl) = cgns_label(&child) else { continue };
-        let typ = read_type_attr(&child).unwrap_or_else(|_| String::from("NO TYPE"));
+        let typ = read_type_attr2(&child, "type").unwrap_or_else(|_| String::from("NO TYPE"));
         println!("  [{name}] child: {child_name} | label: {lbl} | type: {typ}");
         if let Ok(ds) = child.dataset(" data") {
             println!("    data shape: {:?}", ds.shape());
@@ -1010,7 +1010,7 @@ fn traverse_zonebc(zonebc: &Group) -> Result<(), Box<dyn std::error::Error>> {
         for child_name in patch.member_names()? {
             let Ok(child) = patch.group(&child_name) else { continue };
             let Ok(lbl2) = cgns_label(&child) else { continue };
-            let typ = read_type_attr(&child).unwrap_or_else(|_| String::from("NO TYPE"));
+            let typ = read_type_attr2(&child, "type").unwrap_or_else(|_| String::from("NO TYPE"));
             println!("    child: {child_name} | label: {lbl2} | type: {typ}");
             if let Ok(ds) = child.dataset(" data") {
                 println!("      data shape: {:?}", ds.shape());
@@ -1026,6 +1026,8 @@ fn traverse_zonebc(zonebc: &Group) -> Result<(), Box<dyn std::error::Error>> {
 //     "examples/cgns/particles_example.cgns",
 
 fn main() {
+    //     "examples/cgns/yf17_hdf5.cgns",
+    // cgns::read(&Path::new("examples/cgns/yf17_hdf5.cgns")).unwrap();
     cgns::read(&Path::new("examples/cgns/particles_example.cgns")).unwrap();
     // write_roundtrip_test().unwrap();
 }
