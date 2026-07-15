@@ -5,11 +5,18 @@ use ndarray::{Array1, Array2, arr1, s, array};
 use mefikit::mesh::{ElementType, ElementLike, UMesh, UMeshView, Dimension};
 // use std::io::{self, Write};
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use crate::describe_dataset::describe_dataset;
 
 mod cgns;
 mod describe_dataset;
+
+// libhdf5 is not thread-safe. Cargo runs tests in parallel by default, so every
+// test that touches HDF5 must serialize through this lock. Poison-tolerant: a
+// panicking test must not wedge the others.
+#[cfg(test)]
+pub(crate) static HDF5_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn to_element_type(el: u8) -> ElementType {
     match el {
@@ -229,55 +236,8 @@ fn is_nfaces(cgns_code: i32) -> bool {
     cgns_code == 23
 }
 
-fn read_string_data(group: &Group) -> Result<String, Box<dyn std::error::Error>> {
-    let s: String = group
-        .dataset(" data")?
-        .as_reader()
-        .read_1d::<i8>()?
-        .iter()
-        .take_while(|&&b| b != 0)
-        .map(|&b| b as u8 as char)
-        .collect();
-    Ok(s.trim().to_string())
-}
-
-pub fn cgns_label(group: &Group) -> Result<String, Box<dyn std::error::Error>> {
-    let attr = group.attr(" label").or_else(|_| group.attr("label"))?;
-    let label: String = attr
-        .as_reader()
-        .read_scalar::<FixedAscii<64>>()?
-        .to_string();
-    Ok(label.trim().trim_matches('\0').to_string())
-}
-
-pub fn find_first_child_with_label(
-    group: &Group,
-    label: &str,
-) -> Result<Group, Box<dyn std::error::Error>> {
-    for name in group.member_names()? {
-        let Ok(child) = group.group(&name) else { continue };
-        let Ok(lbl) = cgns_label(&child) else { continue };
-        if lbl == label {
-            return Ok(child);
-        }
-    }
-    Err(format!("no child with label '{label}' in '{}'", group.name()).into())
-}
-
-pub fn children_with_label(
-    group: &Group,
-    label: &str,
-) -> Result<Vec<Group>, Box<dyn std::error::Error>> {
-    let mut out = Vec::new();
-    for name in group.member_names()? {
-        let Ok(child) = group.group(&name) else { continue };
-        let Ok(lbl) = cgns_label(&child) else { continue };
-        if lbl == label {
-            out.push(child);
-        }
-    }
-    Ok(out)
-}
+// Reader-side label/coordinate helpers now live in the `cgns` module
+// (see src/cgns.rs, ported from mefikit's io/cgns_io.rs).
 
 // ── element type mapping ──────────────────────────────────────────────────────
 
@@ -325,63 +285,7 @@ fn nodes_per_cgns_code(code: i32) -> Option<usize> {
 }
 
 // ── sub-readers ───────────────────────────────────────────────────────────────
-
-fn read_coordinates(
-    zone: &Group,
-    phys_dim: usize,
-) -> Result<ndarray::ArcArray2<f64>, Box<dyn std::error::Error>> {
-    let gc = find_first_child_with_label(zone, "GridCoordinates_t")?;
-    let names = ["CoordinateX", "CoordinateY", "CoordinateZ"];
-
-    let columns: Vec<Vec<f64>> = (0..phys_dim)
-        .map(|i| {
-            // CoordinateX/Y/Z are groups, data lives in their " data" dataset
-            let coord_group = gc.group(names[i])
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            let ds = coord_group.dataset(" data")
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-
-            // handle both R4 and R8 — check "type" attribute
-            let type_attr = coord_group
-                .attr("type")
-                .and_then(|a| {
-                    use hdf5_metno::types::FixedAscii;
-                    a.as_reader().read_scalar::<FixedAscii<8>>()
-                })
-                .map(|s| s.to_string())
-                .unwrap_or_else(|_| "R8".to_string());
-
-            let values: Vec<f64> = if type_attr.trim_matches('\0').starts_with("R4") {
-                ds.as_reader()
-                    .read_1d::<f32>()?
-                    .iter()
-                    .map(|&v| v as f64)
-                    .collect()
-            } else {
-                ds.as_reader()
-                    .read_1d::<f64>()?
-                    .to_vec()
-            };
-
-            Ok(values)
-        })
-        .collect::<Result<_, Box<dyn std::error::Error>>>()?;
-
-    let n = columns[0].len();
-    let mut coords = ndarray::Array2::<f64>::zeros((n, phys_dim));
-    for (col_idx, col_data) in columns.iter().enumerate() {
-        coords.column_mut(col_idx)
-            .iter_mut()
-            .zip(col_data)
-            .for_each(|(dst, &src)| *dst = src);
-    }
-    let z_col = coords.column(2);
-    println!("--------------------DEBUG-------------------");
-    println!("Z min: {}", z_col.iter().cloned().fold(f64::INFINITY, f64::min));
-    println!("Z max: {}", z_col.iter().cloned().fold(f64::NEG_INFINITY, f64::max));
-    
-    Ok(coords.into_shared())
-}
+// (read_coordinates now lives in the `cgns` module — see src/cgns.rs)
 
 // // first pass: collect BC ranges/pointlists → map global_cgns_idx → family_id
 // fn collect_bc_families(
@@ -696,7 +600,7 @@ fn write_version(file: &File) -> Result<(), Box<dyn std::error::Error>> {
     node.new_dataset::<f32>()
         .shape([1])
         .create(" data")?
-        .write(&arr1(&[3.4_f32]))?; // Write 3.4 CGNS version
+        .write(&arr1(&[4.0_f32]))?; // CPEX0031 offsets require CGNS >= 4.0
     Ok(())
 }
 
@@ -758,22 +662,67 @@ fn write_coords(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
+fn write_conn_and_offset(
+    section: &Group,
+    conn: &[i64],
+    offsets: &[i64],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let conn_node = section.create_group("ElementConnectivity")?;
+    write_node_attrs(&conn_node, "ElementConnectivity", "DataArray_t", "I8", 1)?;
+    conn_node.new_dataset::<i64>()
+        .shape([conn.len()])
+        .create(" data")?
+        .write(&Array1::from(conn.to_vec()))?;
+
+    let off_node = section.create_group("ElementStartOffset")?;
+    write_node_attrs(&off_node, "ElementStartOffset", "DataArray_t", "I8", 1)?;
+    off_node.new_dataset::<i64>()
+        .shape([offsets.len()])
+        .create(" data")?
+        .write(&Array1::from(offsets.to_vec()))?;
+    Ok(())
+}
+
+// Sign of an NFACE reference: +1 if `face` has the same cyclic orientation as
+// the canonical PGON face `canon`, -1 if reversed. Faces with < 3 nodes carry
+// no orientation, so return +1.
+fn face_orientation(canon: &[usize], face: &[usize]) -> i64 {
+    let n = canon.len();
+    if n < 3 {
+        return 1;
+    }
+    let pos = face.iter().position(|&x| x == canon[0]).unwrap();
+    if face[(pos + 1) % n] == canon[1] { 1 } else { -1 }
+}
+
 fn write_elements(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::error::Error>> {
-    
-    // Keep track of global CGNS element index (1-based) as we write sections, 
-    // to ensure correct family tag assignment in BCs.
-    let mut range_start = 1_i32;
+    // Pre-pass: assign each block a contiguous, 1-based [start, end] element range.
+    let mut ranges: Vec<(ElementType, i64, i64)> = Vec::new();
+    let mut start = 1_i64;
+    for (et, block) in mesh.blocks() {
+        let n = block.len() as i64;
+        ranges.push((*et, start, start + n - 1));
+        start += n;
+    }
 
-    // Iterate through blocks in mesh, group by element type, write one section per type
-    for (elem_type, block) in mesh.blocks() {
-        let cgns_code    = element_type_to_cgns(*elem_type);
-        let n_elems      = block.len();
-        let range_end    = range_start + n_elems as i32 - 1;
+    // Build the NGON face-index map from the PGON block:
+    //   sorted-node-set -> (global cgns face index, canonical node order)
+    let mut face_map: HashMap<Vec<usize>, (i64, Vec<usize>)> = HashMap::new();
+    if let Some(&(_, pgon_start, _)) = ranges.iter().find(|(et, _, _)| *et == ElementType::PGON) {
+        let block = mesh.block(ElementType::PGON).unwrap();
+        for (i, el) in block.iter(mesh.coords()).enumerate() {
+            let conn = el.connectivity().to_vec();
+            let mut key = conn.clone();
+            key.sort_unstable();
+            face_map.insert(key, (pgon_start + i as i64, conn));
+        }
+    }
 
-        // Name group with element type for readability
-        let section_name = format!("{elem_type:?}");
+    for (et, r_start, r_end) in ranges.iter().copied() {
+        let block = mesh.block(et).unwrap();
+        let cgns_code = element_type_to_cgns(et);
+        let section_name = format!("{et:?}");
 
-        // section group
         let section = zone.create_group(&section_name)?;
         write_node_attrs(&section, &section_name, "Elements_t", "I4", 1)?;
         section.new_dataset::<i32>()
@@ -781,90 +730,58 @@ fn write_elements(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::err
             .create(" data")?
             .write(&arr1(&[cgns_code, 0_i32]))?;
 
-        // ElementRange — shape [2, 1] required by vtkCGNSReader
         let er = section.create_group("ElementRange")?;
         write_node_attrs(&er, "ElementRange", "IndexRange_t", "I8", 1)?;
         er.new_dataset::<i64>()
             .shape([2])
             .create(" data")?
-            .write(&ndarray::arr1(&[range_start, range_end]))?;
+            .write(&arr1(&[r_start, r_end]))?;
 
-        // ElementConnectivity
-        let conn: Vec<i64> = match nodes_per_cgns_code(cgns_code) {
-            Some(_) => {
-                block.iter(mesh.coords())
-                    .flat_map(|elem| {
-                        elem.connectivity
-                            .iter()
-                            .map(|&n| (n + 1) as i64)
-                    })
-                    .collect()
+        match et {
+            ElementType::PGON => {
+                let mut conn: Vec<i64> = Vec::new();
+                let mut offsets: Vec<i64> = vec![0];
+                for el in block.iter(mesh.coords()) {
+                    for &node in el.connectivity() {
+                        conn.push(node as i64 + 1);
+                    }
+                    offsets.push(conn.len() as i64);
+                }
+                write_conn_and_offset(&section, &conn, &offsets)?;
             }
-            None => {
-                block.iter(mesh.coords())
-                    .flat_map(|elem| {
-                        let n = elem.connectivity.len() as i64;
-                        std::iter::once(n)
-                            .chain(elem.connectivity
-                            .iter()
-                            .map(|&v| (v + 1) as i64))
-                        })
-                        .collect()
+            ElementType::PHED => {
+                let mut conn: Vec<i64> = Vec::new();
+                let mut offsets: Vec<i64> = vec![0];
+                for el in block.iter(mesh.coords()) {
+                    for face in el.connectivity().split(|&x| x == usize::MAX) {
+                        if face.is_empty() {
+                            continue; // trailing separator
+                        }
+                        let mut key = face.to_vec();
+                        key.sort_unstable();
+                        let (idx, canon) = face_map.get(&key)
+                            .ok_or("write_cgns: PHED face not present in PGON block")?;
+                        conn.push(face_orientation(canon, face) * idx);
+                    }
+                    offsets.push(conn.len() as i64);
+                }
+                write_conn_and_offset(&section, &conn, &offsets)?;
             }
-        };
-
-        let conn_node = section.create_group("ElementConnectivity")?;
-        write_node_attrs(&conn_node, "ElementConnectivity", "DataArray_t", "I8", 1)?;
-        conn_node.new_dataset::<i64>()
-            .shape([conn.len()])
-            .create(" data")?
-            .write(&Array1::from(conn))?;
-
-        range_start = range_end + 1;
-    }
-    Ok(())
-}
-
-fn write_bcs(zone: &Group, mesh: &UMeshView) -> Result<(), Box<dyn std::error::Error>> {
-    // collect family_id → [global_cgns_idx, ...] (1-based)
-    let mut families: BTreeMap<usize, Vec<i32>> = BTreeMap::new();
-    let mut range_start = 1_i32;
-    for (_, block) in mesh.blocks() {
-        let n_elems = block.len();
-        for (local_idx, elem) in block.iter(mesh.coords()).enumerate() {
-            if *elem.family != 0 {
-                let global_cgns_idx = range_start + local_idx as i32;
-                families.entry(*elem.family).or_default().push(global_cgns_idx);
+            _ => {
+                let mut conn: Vec<i64> = Vec::new();
+                for el in block.iter(mesh.coords()) {
+                    for &node in el.connectivity() {
+                        conn.push(node as i64 + 1);
+                    }
+                }
+                let conn_node = section.create_group("ElementConnectivity")?;
+                write_node_attrs(&conn_node, "ElementConnectivity", "DataArray_t", "I8", 1)?;
+                conn_node.new_dataset::<i64>()
+                    .shape([conn.len()])
+                    .create(" data")?
+                    .write(&Array1::from(conn))?;
             }
         }
-        range_start += n_elems as i32;
-    }
-    if families.is_empty() {
-        return Ok(());
-    }
-
-    let zonebc = zone.create_group("ZoneBC")?;
-    write_node_attrs(&zonebc, "ZoneBC", "ZoneBC_t", "MT", 1)?;
-
-    for (family_id, face_ids) in &families {
-        let bc_name = format!("Family_{family_id}");
-        let bc = zonebc.create_group(&bc_name)?;
-        write_node_attrs(&bc, &bc_name, "BC_t", "C1", 1)?;
-        write_c1_data(&bc, "BCGeneral")?;
-
-        // GridLocation
-        let gl = bc.create_group("GridLocation")?;
-        write_node_attrs(&gl, "GridLocation", "GridLocation_t", "C1", 1)?;
-        write_c1_data(&gl, "FaceCenter")?;
-
-        // PointList — shape [1, n]
-        let n  = face_ids.len();
-        let pl = bc.create_group("PointList")?;
-        write_node_attrs(&pl, "PointList", "IndexArray_t", "I4", 1)?;
-        pl.new_dataset::<i32>()
-            .shape([n])
-            .create(" data")?
-            .write(&ndarray::Array1::from_shape_vec((n), face_ids.clone())?)?;
     }
     Ok(())
 }
@@ -876,8 +793,8 @@ pub fn write_cgns(path: &Path, mesh: UMeshView) -> Result<(), Box<dyn std::error
     let file = File::create(path)?;
 
     // root group
-    write_root_attrs(&file);
-    
+    write_root_attrs(&file)?;
+
     // " format" — 15 bytes null-padded
     {
         let mut fmt = [0i8; 15];
@@ -924,117 +841,103 @@ pub fn write_cgns(path: &Path, mesh: UMeshView) -> Result<(), Box<dyn std::error
     // Write coordinates
     write_coords(&zone, &mesh)?;
 
-    // One section per block. The NGON/NFACE index-space split
-    // is handled inside write_elements / encode_connectivity
+    // One section per block. Regular types become fixed-stride Elements_t
+    // sections; PGON becomes NGON_n and PHED becomes NFACE_n (CPEX0031, with
+    // ElementStartOffset). Family_t / ZoneBC_t are intentionally not written.
     write_elements(&zone, &mesh)?;
-
-    // Boundary conditions reference element indices by their 1-based CGNS
-    // position within the contiguous ElementRange written in Element_t.
-    // write_bcs rebuilds the same range_start arithmetic to ensure the
-    // PointList values match.
-    write_bcs(&zone, &mesh)?;
 
     Ok(())
 }
 
 pub fn write_roundtrip_test() -> Result<(), Box<dyn std::error::Error>> {
     let mesh = cgns::read(Path::new("examples/cgns/particles_example.cgns"))?;
-    write_cgns(Path::new("examples/cgns/roundtrip_particles8.cgns"), mesh.view())?;
-    println!("wrote roundtrip_particles8.cgns");
+    write_cgns(Path::new("examples/cgns/roundtrip_check.cgns"), mesh.view())?;
+    println!("wrote roundtrip_check.cgns");
     Ok(())
 }
-
-fn traverse_nodes(file: File) -> Result<(), Box<dyn std::error::Error>> {
-    let mother = file.as_group()?;
-    let main_group = find_first_child_with_label(&mother, "CGNSBase_t")?;
-    let zone = find_first_child_with_label(&main_group, "Zone_t")?;
-    let groups = zone.member_names()?;
-
-    for group in groups {
-        let Ok(child) = zone.group(&group) else { continue };
-        let Ok(lbl) = cgns_label(&child) else { continue };
-        println!("=== Group: {group} with label {lbl} ===");
-
-        match lbl.as_str() {
-            "GridCoordinates_t" => {
-                traverse_coordinates(&child)?;
-            }
-            "Elements_t" => {
-                traverse_elements(&group, &child)?;
-            }
-            "ZoneBC_t" => {
-                traverse_zonebc(&child)?;
-            }
-            _ => {}
-        }
-        
-    }
-    Ok(())
-}
-
-fn traverse_coordinates(coords_group: &Group) -> Result<(), Box<dyn std::error::Error>> {
-    for name in coords_group.member_names()? {
-        let Ok(child) = coords_group.group(&name) else { continue };
-        let Ok(lbl) = cgns_label(&child) else { continue };
-        let typ = read_type_attr(&child).unwrap_or_else(|_| String::from("NO TYPE"));
-        println!("  Coord: {name} | label: {lbl} | type: {typ}");
-        // typ should be R4 or R8 — actual coordinate data lives
-        // in the " data" dataset inside this node
-        if let Ok(ds) = child.dataset(" data") {
-            println!("    data shape: {:?}", ds.shape());
-        }
-    }
-    Ok(())
-}
-
-fn traverse_elements(name: &str, elem_group: &Group) -> Result<(), Box<dyn std::error::Error>> {
-    // The element type integer is the node's own data (type I4 you already see)
-    // Children hold the actual arrays
-    for child_name in elem_group.member_names()? {
-        let Ok(child) = elem_group.group(&child_name) else { continue };
-        let Ok(lbl) = cgns_label(&child) else { continue };
-        let typ = read_type_attr2(&child, "type").unwrap_or_else(|_| String::from("NO TYPE"));
-        println!("  [{name}] child: {child_name} | label: {lbl} | type: {typ}");
-        if let Ok(ds) = child.dataset(" data") {
-            println!("    data shape: {:?}", ds.shape());
-        }
-    }
-    Ok(())
-}
-
-fn traverse_zonebc(zonebc: &Group) -> Result<(), Box<dyn std::error::Error>> {
-    for patch_name in zonebc.member_names()? {
-        let Ok(patch) = zonebc.group(&patch_name) else { continue };
-        let Ok(lbl) = cgns_label(&patch) else { continue };
-        println!("  BC patch: {patch_name} | label: {lbl}");
-        for child_name in patch.member_names()? {
-            let Ok(child) = patch.group(&child_name) else { continue };
-            let Ok(lbl2) = cgns_label(&child) else { continue };
-            let typ = read_type_attr2(&child, "type").unwrap_or_else(|_| String::from("NO TYPE"));
-            println!("    child: {child_name} | label: {lbl2} | type: {typ}");
-            if let Ok(ds) = child.dataset(" data") {
-                println!("      data shape: {:?}", ds.shape());
-            }
-        }
-    }
-    Ok(())
-}
-
-// println!("Start");
-// let files = vec![
-//     "examples/cgns/yf17_hdf5.cgns",
-//     "examples/cgns/particles_example.cgns",
 
 fn main() {
-    let mesh = cgns::read(&Path::new("examples/cgns/particles_example.cgns")).unwrap();
-    eprintln!("=== MESH DUMP ===");
-    eprintln!("space_dim={} top_dim={:?} n_coords={}",
-        mesh.space_dimension(), mesh.topological_dimension(), mesh.coords().nrows());
-    for (et, block) in mesh.blocks() {
-        eprintln!("block {et:?}: {} elements, dim={:?}", block.len(), et.dimension());
-        for (i, el) in block.iter(mesh.coords()).enumerate().take(3) {
-            eprintln!("   elem[{i}] conn(len={}): {:?}", el.connectivity().len(),
-                &el.connectivity()[..el.connectivity().len().min(12)]);
-        }
+    write_roundtrip_test().unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+
+    fn cgnscheck(path: &str) -> (i32, String) {
+        let out = Command::new("cgnscheck").arg("-v").arg(path).output().unwrap();
+        let code = out.status.code().unwrap_or(-1);
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        (code, text)
+    }
+
+    #[test]
+    fn roundtrip_particles_passes_cgnscheck() {
+        let _hdf5 = crate::HDF5_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let src = "examples/cgns/particles_example.cgns";
+        let dst = "examples/cgns/roundtrip_check.cgns";
+        let _ = std::fs::remove_file(dst);
+        let mesh = cgns::read(Path::new(src)).unwrap();
+        write_cgns(Path::new(dst), mesh.view()).unwrap();
+
+        let (code, text) = cgnscheck(dst);
+        assert_eq!(code, 0, "cgnscheck failed (exit {code}):\n{text}");
+        assert!(!text.to_lowercase().contains("error"), "cgnscheck reported errors:\n{text}");
+    }
+
+    #[test]
+    fn roundtrip_particles_reread_matches() {
+        let _hdf5 = crate::HDF5_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let src = "examples/cgns/particles_example.cgns";
+        let dst = "examples/cgns/roundtrip_reread.cgns";
+        let _ = std::fs::remove_file(dst);
+
+        let orig = cgns::read(Path::new(src)).unwrap();
+        write_cgns(Path::new(dst), orig.view()).unwrap();
+        let back = cgns::read(Path::new(dst)).unwrap();
+
+        assert_eq!(orig.coords().nrows(), back.coords().nrows());
+        assert_eq!(orig.space_dimension(), back.space_dimension());
+        assert_eq!(
+            back.block(ElementType::PGON).unwrap().len(),
+            orig.block(ElementType::PGON).unwrap().len()
+        );
+        assert_eq!(
+            back.block(ElementType::PHED).unwrap().len(),
+            orig.block(ElementType::PHED).unwrap().len()
+        );
+
+        // First PHED cell's face-node structure survives the round-trip.
+        let a = orig.block(ElementType::PHED).unwrap()
+            .iter(orig.coords()).next().unwrap().connectivity().to_vec();
+        let b = back.block(ElementType::PHED).unwrap()
+            .iter(back.coords()).next().unwrap().connectivity().to_vec();
+        assert_eq!(a, b, "first PHED cell connectivity must match");
+    }
+
+    #[test]
+    fn regular_hex_mesh_passes_cgnscheck() {
+        let _hdf5 = crate::HDF5_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // Hand-built unit-cube HEX8 (mefikit::mesh_examples is feature-gated out).
+        // CGNS HEX_8 node order: bottom quad CCW then top quad CCW.
+        let coords = ndarray::arr2(&[
+            [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0], [1.0, 0.0, 1.0], [1.0, 1.0, 1.0], [0.0, 1.0, 1.0],
+        ]).into_shared();
+        let mut mesh = UMesh::new(coords);
+        mesh.add_element(ElementType::HEX8, &[0, 1, 2, 3, 4, 5, 6, 7], None, None);
+
+        let dst = "examples/cgns/regular_hex_check.cgns";
+        let _ = std::fs::remove_file(dst);
+        write_cgns(Path::new(dst), mesh.view()).unwrap();
+
+        let (code, text) = cgnscheck(dst);
+        assert_eq!(code, 0, "cgnscheck failed (exit {code}):\n{text}");
+        assert!(!text.to_lowercase().contains("error"), "cgnscheck errors:\n{text}");
     }
 }

@@ -1,7 +1,8 @@
 use hdf5_metno::{File, Group};
 use std::path::Path;
 
-use crate::{read_type_attr2, find_first_child_with_label, cgns_label};
+use crate::read_type_attr2;
+use crate::cgns::{find_first_child_with_label, cgns_label};
 
 fn traverse_nodes(file: File) -> Result<(), Box<dyn std::error::Error>> {
     let mother = file.as_group()?;
