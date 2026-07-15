@@ -239,12 +239,7 @@ fn read_bcs(mesh: &mut UMesh, zone: &Group) -> Result<(), Box<dyn std::error::Er
 pub fn read(path: &Path) -> Result<UMesh, Box<dyn std::error::Error>> {
     let f = File::open(path)?;
     println!("<------> DATASET DESCRIPTION <------>");
-    // describe_dataset::describe_dataset(path);
     let base = find_first_child_with_label(&f.as_group()?, "CGNSBase_t")?;
-    // let names = base.member_names()?;
-    // println!("{names:?}");
-    
-    
     let cgns_dim = CgnsBaseDim::try_from(&base)?;
     
     println!("<------> BASE INFOS <------>");

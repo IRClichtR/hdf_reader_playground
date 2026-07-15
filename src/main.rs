@@ -1026,8 +1026,15 @@ fn traverse_zonebc(zonebc: &Group) -> Result<(), Box<dyn std::error::Error>> {
 //     "examples/cgns/particles_example.cgns",
 
 fn main() {
-    //     "examples/cgns/yf17_hdf5.cgns",
-    // cgns::read(&Path::new("examples/cgns/yf17_hdf5.cgns")).unwrap();
-    cgns::read(&Path::new("examples/cgns/particles_example.cgns")).unwrap();
-    // write_roundtrip_test().unwrap();
+    let mesh = cgns::read(&Path::new("examples/cgns/particles_example.cgns")).unwrap();
+    eprintln!("=== MESH DUMP ===");
+    eprintln!("space_dim={} top_dim={:?} n_coords={}",
+        mesh.space_dimension(), mesh.topological_dimension(), mesh.coords().nrows());
+    for (et, block) in mesh.blocks() {
+        eprintln!("block {et:?}: {} elements, dim={:?}", block.len(), et.dimension());
+        for (i, el) in block.iter(mesh.coords()).enumerate().take(3) {
+            eprintln!("   elem[{i}] conn(len={}): {:?}", el.connectivity().len(),
+                &el.connectivity()[..el.connectivity().len().min(12)]);
+        }
+    }
 }
